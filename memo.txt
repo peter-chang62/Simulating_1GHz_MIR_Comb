@@ -5,3 +5,5 @@ Connor already has a FromPowerSpectrum classmethod which allows you to set the s
 Connor's model.py is more efficient than yours, he's using real rfft and irfft. You should implement the same! 
 
 Most / all of the changes you need to make are on your own files not connor's...
+
+you just finished renaming self.ind_pm_thz -> self.ind_ret, you still need to make sure that self.pulse is used correctly in the retrieval call.

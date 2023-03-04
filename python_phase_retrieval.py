@@ -7,6 +7,10 @@ import scipy.constants as sc
 import scipy.integrate as scint
 import matplotlib.pyplot as plt
 import BBO
+import scipy.interpolate as spi
+import utilities as util
+import copy
+import scipy.optimize as spo
 
 
 def normalize(x):
@@ -14,10 +18,12 @@ def normalize(x):
     normalize a vector
 
     Args:
-        x (ndarray): data to be normalized
+        x (ndarray):
+            data to be normalized
 
     Returns:
-        nd array: normalized data
+        ndarray:
+            normalized data
     """
 
     return x / np.max(abs(x))
@@ -28,13 +34,15 @@ def fft(x, axis=None):
     perform fft of array x along specified axis
 
     Args:
-        x (ndarray): array on which to perform fft
-        axis (None, optional): None defaults to axis=-1, otherwise specify the
-        axis. By default I throw an error if x is not 1D and axis is not
-        specified
+        x (ndarray):
+            array on which to perform fft
+        axis (None, optional):
+            None defaults to axis=-1, otherwise specify the axis. By default I
+            throw an error if x is not 1D and axis is not specified
 
     Returns:
-        ndarray: fft of x
+        ndarray:
+            fft of x
     """
 
     assert (len(x.shape) == 1) or isinstance(
@@ -56,13 +64,15 @@ def ifft(x, axis=None):
     perform ifft of array x along specified axis
 
     Args:
-        x (ndarray): array on which to perform ifft
-        axis (None, optional): None defaults to axis=-1, otherwise specify the
-        axis. By default I throw an error if x is not 1D and axis is not
-        specified
+        x (ndarray):
+            array on which to perform ifft
+        axis (None, optional):
+            None defaults to axis=-1, otherwise specify the axis. By default I
+            throw an error if x is not 1D and axis is not specified
 
     Returns:
-        ndarray: ifft of x
+        ndarray:
+            ifft of x
     """
 
     assert (len(x.shape) == 1) or isinstance(
@@ -84,13 +94,15 @@ def rfft(x, axis=None):
     perform rfft of array x along specified axis
 
     Args:
-        x (ndarray): array on which to perform rfft
-        axis (None, optional): None defaults to axis=-1, otherwise specify the
-        axis. By default I throw an error if x is not 1D and axis is not
-        specified
+        x (ndarray):
+            array on which to perform rfft
+        axis (None, optional):
+            None defaults to axis=-1, otherwise specify the axis. By default I
+            throw an error if x is not 1D and axis is not specified
 
     Returns:
-        ndarray: rfft of x
+        ndarray:
+            rfft of x
 
     Notes:
         rfft requires that you run ifftshift on the input, but the output does
@@ -115,13 +127,15 @@ def irfft(x, axis=None):
     perform irfft of array x along specified axis
 
     Args:
-        x (ndarray): array on which to perform irfft
-        axis (None, optional): None defaults to axis=-1, otherwise specify the
-        axis. By default I throw an error if x is not 1D and axis is not
-        specified
+        x (ndarray):
+            array on which to perform irfft
+        axis (None, optional):
+            None defaults to axis=-1, otherwise specify the axis. By default I
+            throw an error if x is not 1D and axis is not specified
 
     Returns:
-        ndarray: irfft of x
+        ndarray:
+            irfft of x
 
     Notes:
         irfft does not require an ifftshift on the input since the output of
@@ -147,20 +161,23 @@ def shift(x, freq, shift, freq_is_angular=False, x_is_real=False):
     shift a 1D or 2D array
 
     Args:
-        x (1D or 2D array): data to be shifted
+        x (1D or 2D array):
+            data to be shifted
+        freq (1D array):
+            frequency axis (units to be complementary to shift)
 
-        freq (1D array): frequency axis (units to be complementary to shift)
-
-        shift (float or 1D array): float if x is a 1D array, otherwise needs to
-        be an array, one shift for each row of x
-
-        freq_is_angular (bool, optional): is the freq provided angular frequency or not
-
-        x_is_real (bool, optional): use real fft's or complex fft's, generally
-        stick to complex if you want to be safe
+        shift (float or 1D array):
+            float if x is a 1D array, otherwise needs to be an array, one shift
+            for each row of x
+        freq_is_angular (bool, optional):
+            is the freq provided angular frequency or not
+        x_is_real (bool, optional):
+            use real fft's or complex fft's, generally stick to complex if you
+            want to be safe
 
     Returns:
-        ndarray: shifted data
+        ndarray:
+            shifted data
     """
 
     assert (len(x.shape) == 1) or (len(x.shape) == 2), "x can either be 1D or 2D"
@@ -201,11 +218,14 @@ def calculate_spectrogram(pulse, T_delay):
     calculate the spectrogram of a pulse over a given time delay axis
 
     Args:
-        pulse (object): pulse instance from pynlo.light
-        T_delay (1D array): time delay axis (mks units)
+        pulse (object):
+            pulse instance from pynlo.light
+        T_delay (1D array):
+            time delay axis (mks units)
 
     Returns:
-        TYPE: Description
+        2D array:
+            the calculated spectrogram over pulse.v_grid and T_delay
     """
     assert isinstance(pulse, light.Pulse), "pulse must be a Pulse instance"
     AT = np.zeros((len(T_delay), len(pulse.a_t)), dtype=np.complex128)
@@ -227,11 +247,13 @@ def denoise(x, gamma):
     denoise x with threshold gamma
 
     Args:
-        x (ndarray): data to be denoised
-        gamma (float): threshold value
-
+        x (ndarray):
+            data to be denoised
+        gamma (float):
+            threshold value
     Returns:
-        ndarray: denoised data
+        ndarray:
+            denoised data
 
     Notes:
         The condition is abs(x) >= gamma, and returns:
@@ -247,14 +269,19 @@ def load_data(path):
     loads the spectrogram data
 
     Args:
-        path (string): path to the FROG data
+        path (string):
+            path to the FROG data
 
     Returns:
-        wl_nm (1D array): wavelength axis in nanometers
-        F_THz (1D array): frequency axis in THz
-        T_fs (1D array): time delay axis in femtoseconds
-        spectrogram (2D array): the spectrogram with time indexing the row, and
-        wavelength indexing the column
+        wl_nm (1D array):
+            wavelength axis in nanometers
+        F_THz (1D array):
+            frequency axis in THz
+        T_fs (1D array):
+            time delay axis in femtoseconds
+        spectrogram (2D array):
+            the spectrogram with time indexing the row, and wavelength indexing
+            the column
 
     Notes:
         this function extracts relevant variables from the spectrogram data:
@@ -287,17 +314,20 @@ def func(gamma, args):
     iteration
 
     Args:
-        gamma (TYPE): Description
-        args (TYPE): Description
+        gamma (float):
+            scaling factor to multiply the experimental spectrogram
+        args (tuple):
+            a tuple of: spectrogram, experimental spectrogram (to compare to
+            spectrogram). Technically it would matter if their order were
+            reversed
 
     Returns:
-        TYPE: Description
+        float:
+            The calculated error given as the root mean squared of the
+            difference between spectrogram and experimental spectrogram
     """
     spctgm, spctgm_exp = args
     return np.sqrt(np.mean(abs(normalize(spctgm) - gamma * normalize(spctgm_exp)) ** 2))
-
-
-# ------------- you are here --------------
 
 
 class Retrieval:
@@ -306,14 +336,13 @@ class Retrieval:
         self._F_THz = None
         self._T_fs = None
         self._spectrogram = None
-        self._min_sig_fthz = None
         self._min_pm_fthz = None
         self._max_sig_fthz = None
         self._max_pm_fthz = None
         self._pulse = None
         self._pulse_data = None
         self._spectrogram_interp = None
-        self._ind_pm_fthz = None
+        self._ind_ret = None
         self._error = None
         self._AT2D = None
 
@@ -376,11 +405,11 @@ class Retrieval:
         return self._max_pm_fthz
 
     @property
-    def ind_pm_fthz(self):
+    def ind_ret(self):
         assert isinstance(
-            self._ind_pm_fthz, np.ndarray
+            self._ind_ret, np.ndarray
         ), "no phase matching bandwidth has been defined yet"
-        return self._ind_pm_fthz
+        return self._ind_ret
 
     @property
     def pulse(self):
@@ -415,22 +444,30 @@ class Retrieval:
 
     def load_data(self, path):
         """
-        :param path: path to data
+        load the data
 
-        loads the data
+        Args:
+            path (string):
+                path to data
         """
         self._wl_nm, self._F_THz, self._T_fs, self._spectrogram = load_data(path)
 
     def set_signal_freq(self, min_sig_fthz, max_sig_fthz):
         """
-        :param min_sig_fthz: minimum signal frequency
-        :param max_sig_fthz: maximum signal frequency
+        this function is used to denoise the spectrogram before retrieval
 
-        sets the minimum and maximum signal frequency and then denoises the
-        parts of the spectrogram that is outside this frequency range,
-        this is used purely for calling denoise on the spectrogram, and does
-        not set the frequency range to be used for retrieval (that is
-        instead set by the phase matching bandwidth)
+        Args:
+            min_sig_fthz (float):
+                minimum signal frequency
+            max_sig_fthz (float):
+                maximum signal frequency
+
+        Notes:
+            sets the minimum and maximum signal frequency and then denoises the
+            parts of the spectrogram that is outside this frequency range,
+            this is used purely for calling denoise on the spectrogram, and
+            does not set the frequency range to be used for retrieval (that is
+            instead set by the phase matching bandwidth)
         """
 
         self._min_sig_fthz, self._max_sig_fthz = float(min_sig_fthz), float(
@@ -440,23 +477,31 @@ class Retrieval:
 
     def _get_ind_fthz_nosig(self):
         """
-        :return: an array of integers
+        a convenience function used for denoise_spectrogram()
 
-        This gets an array of indices for the experimental wavelength axis
-        that falls inside the signal frequency range (the one that is used
-        to denoise the spectrogram). This can only be called after
-        min_sig_fthz and max_sig_fthz have been set by set_signal_freq
+        Returns:
+            1D array of integers:
+                indices of the experimental wavelength axis that falls outside
+                the signal frequency range (the one used to denoise the
+                spectrogram)
+
+        Notes:
+                This gets an array of indices for the experimental wavelength
+                axis that falls outside the signal frequency range (the one
+                that is used to denoise the spectrogram). This can only be
+                called after min_sig_fthz and max_sig_fthz have been set by
+                set_signal_freq
         """
 
         mask_fthz_sig = np.logical_and(
             self.F_THz >= self.min_sig_fthz, self.F_THz <= self.max_sig_fthz
         )
 
-        ind_fthz_nosig = np.ones(len(self.F_THz))
-        ind_fthz_nosig[mask_fthz_sig] = 0
-        ind_fthz_nosig = ind_fthz_nosig.nonzero()[0]
+        ind_nosig = np.ones(len(self.F_THz))
+        ind_nosig[mask_fthz_sig] = 0
+        ind_nosig = ind_nosig.nonzero()[0]
 
-        return ind_fthz_nosig
+        return ind_nosig
 
     def denoise_spectrogram(self):
         """
@@ -464,19 +509,26 @@ class Retrieval:
         """
         self.spectrogram[:] = normalize(self.spectrogram)
 
-        ind_fthz_nosig = self._get_ind_fthz_nosig()
-        self.spectrogram[:, ind_fthz_nosig] = denoise(
-            self.spectrogram[:, ind_fthz_nosig], 1e-3
+        ind_nosig = self._get_ind_fthz_nosig()
+        self.spectrogram[:, ind_nosig] = denoise(
+            self.spectrogram[:, ind_nosig], 1e-3
         ).real
 
     def correct_for_phase_matching(self, deg=5.5):
         """
-        :param deg: non-collinear angle incident into the BBO is fixed at
-        5.5 degrees
+        correct for phase-matching
 
-        the spectrogram is divided by the phase-matching curve, and then
-        denoised, so this can only be called after calling set_signal_freq
+        Args:
+            deg (float, optional):
+                non-collinear angle incident into the BBO is fixed at 5.5
+                degrees
+
+        Notes:
+            the spectrogram is divided by the phase-matching curve, and then
+            denoised, so this can only be called after calling
+            set_signal_freq
         """
+
         assert deg == 5.5
 
         bbo = BBO.BBOSHG()
@@ -500,42 +552,57 @@ class Retrieval:
         self, center_wavelength_nm=1560, time_window_ps=10, NPTS=2**12
     ):
         """
-        :param center_wavelength_nm: center wavelength in nanometers
-        :param time_window_ps: time window in picoseconds
-        :param NPTS: number of points
+        Args:
+            center_wavelength_nm (float, optional):
+                center wavelength in nanometers, default is 1560
+            time_window_ps (int, optional):
+                time window in picoseconds, default is 10. This sets the size
+                of the time grid
+            NPTS (int, optional):
+                number of points on the time and frequency grid, default is
+                2 ** 12 = 4096
 
-        This initializes a pulse using PyNLO with a sech envelope, whose
-        time bandwidth is set according to the intensity autocorrelation of
-        the spectrogram. Realize that the spectrogram could have been
-        slightly altered depending on whether it's been denoised (called by
-        either set_signal_freq or correct_for_phase_matching, but this
-        should not influence the time bandwidth significantly)
+        Notes:
+            This initializes a pulse using PyNLO with a sech envelope, whose
+            time bandwidth is set according to the intensity autocorrelation
+            of the spectrogram. Realize that the spectrogram could have been
+            slightly altered depending on whether it's been denoised(called by
+            either set_signal_freq or correct_for_phase_matching, but this
+            should not influence the time bandwidth significantly)
         """
+
         # integrate experimental spectrogram across wavelength axis
         x = -scint.simpson(self.spectrogram, x=self.F_THz, axis=1)
 
         spl = spi.UnivariateSpline(self.T_fs, normalize(x) - 0.5, s=0)
         roots = spl.roots()
 
+        # --------------- switched to using connor's pynlo class --------------
         T0 = np.diff(roots[[0, -1]]) * 0.65 / 1.76
-        self._pulse = fpn.Pulse(
-            T0_ps=T0 * 1e-3,
-            center_wavelength_nm=center_wavelength_nm,
-            time_window_ps=time_window_ps,
-            NPTS=NPTS,
+        self._pulse = util.Pulse.Sech(
+            n_points=NPTS,
+            time_window=time_window_ps * 1e-12,
+            center_wl=center_wavelength_nm * 1e-9,
+            t_fwhm=T0 * 1e-15,  # T0 is in fs
+            e_p=5.0e-9,
         )
-        phase = np.random.uniform(low=0, high=1, size=self.pulse.NPTS) * np.pi / 8
-        self._pulse.set_AT(self._pulse.AT * np.exp(1j * phase))  # random phase
+        phase = np.random.uniform(low=0, high=1, size=self.pulse.n) * np.pi / 8
+        self._pulse.a_t = self._pulse.a_t * np.exp(1j * phase)
 
     def load_spectrum_data(self, wl_um, spectrum):
         """
-        :param wl_um: wavelength in um
-        :param spectrum: power spectrum (from a spectrometer or monochromator)
+        Args:
+            wl_um (1D array):
+                wavelength axis in micron
+            spectrum (1D array):
+                power spectrum
 
-        This can only be called after having already called
-        set_initial_guess. It clones the original pulse and sets the envelope
-        in the frequency domain to the transform limited pulse calculated
-        from the power spectrum
+        Notes:
+            This can only be called after having already called
+            set_initial_guess. It clones the original pulse and sets the
+            envelope in the frequency domain to the transform limited pulse
+            calculated from the power spectrum
+
         """
 
         # when converting dB to linear scale for data taken by the
@@ -543,15 +610,19 @@ class Retrieval:
         # where you have no (or very little) power (experimental error)
         assert np.all(spectrum >= 0), "a negative spectrum is not physical"
 
-        pulse_data: fpn.Pulse
+        pulse_data: light.Pulse
         pulse_data = copy.deepcopy(self.pulse)
-        pulse_data.set_AW_experiment(wl_um, np.sqrt(spectrum))
+        p_v_callable = spi.interp1d(
+            wl_um, spectrum, kind="linear", bounds_error=False, fill_value=0.0
+        )
+        p_v = p_v_callable(pulse_data.wl * 1e6)
+        pulse_data.a_v = p_v**0.5  # phase = 0
         self._pulse_data = pulse_data
 
     def _intrplt_spctrgrm_to_sim_grid(self):
         """
-        This interpolates the spectrogram to the simulation grid. This can
-        only be called after calling set_initial_guess and
+        This interpolates the spectrogram to the simulation grid. This can only
+        be called after calling set_initial_guess and
         correct_for_phase_matching because the simulation grid is defined by
         the pulse's frequency grid, and the interpolation range is narrowed
         down to the phase-matching bandwidth
@@ -560,14 +631,18 @@ class Retrieval:
         gridded = spi.interp2d(
             self.F_THz, self.T_fs, self.spectrogram, bounds_error=True
         )
-        spectrogram_interp = gridded(self.pulse.F_THz[self.ind_pm_fthz] * 2, self.T_fs)
+        # the input goes as column coord, row coord, 2D data
+        # so time is the row index, and wavelength is the column index
+        spectrogram_interp = gridded(
+            self.pulse.v_grid[self.ind_ret] * 1e-12 * 2, self.T_fs
+        )
 
         # scale the interpolated spectrogram to match the pulse energy. I do
         # it here instead of to the experimental spectrogram, because the
         # interpolated spectrogram has the same integration frequency axis
         # as the pulse instance
-        x = calculate_spectrogram(self.pulse, self.T_fs)
-        factor = scint.simpson(scint.simpson(x[:, self.ind_pm_fthz])) / scint.simpson(
+        x = calculate_spectrogram(self.pulse, self.T_fs * 1e-15)
+        factor = scint.simpson(scint.simpson(x[:, self.ind_ret])) / scint.simpson(
             scint.simpson(spectrogram_interp)
         )
         spectrogram_interp *= factor
@@ -575,63 +650,73 @@ class Retrieval:
 
     def retrieve(self, start_time, end_time, itermax, iter_set=None, plot_update=True):
         """
-        :param start_time:
-        :param end_time:
-        :param itermax:
-        :param iter_set:
+        Args:
+            start_time (float):
+                start time for retrieval in femtoseconds
+            end_time (float):
+                end time for retrieval in femtoseconds
+            itermax (int):
+                number of iterations to use
+            iter_set (int, optional):
+                iteration at which to set the power spectrum to the
+                experimentally measured one, default is None which disables
+                this functionality
+            plot_update (bool, optional):
+                whether to update a plot after each iteration
         """
 
         assert (iter_set is None) or (
-            isinstance(self.pulse_data, fpn.Pulse) and isinstance(iter_set, int)
+            isinstance(self.pulse_data, light.Pulse) and isinstance(iter_set, int)
         )
 
-        # self._ind_pm_fthz = np.logical_and(self.pulse.F_THz * 2 >= self.min_pm_fthz,
-        #                                    self.pulse.F_THz * 2 <= self.max_pm_fthz).nonzero()[0]
+        # self._ind_ret = np.logical_and(
+        #     self.pulse.v_grid * 1e-12 * 2 >= self.min_pm_fthz,
+        #     self.pulse.v_grid * 1e-12 * 2 <= self.max_pm_fthz,
+        # ).nonzero()[0]
 
-        # I use self.ind_pm_fthz to set the retrieval's frequency bandwidth.
+        # I use self.ind_ret to set the retrieval's frequency bandwidth.
         # Previously I set the retrieval's frequency bandwidth to the
-        # phase-matching bandwidth (hence the name), but now I want to set
-        # it to the signal frequency bandwidth. I haven't removed the
-        # previous line though, since it's not called repeatedly during
-        # retrieval (so it's not a waste of time), and it's a useful way to
-        # check that the user has called self.correct_for_phase_matching
-        self._ind_pm_fthz = np.logical_and(
-            self.pulse.F_THz * 2 >= self.min_sig_fthz,
-            self.pulse.F_THz * 2 <= self.max_sig_fthz,
+        # phase-matching bandwidth, but now I want to set it to the signal
+        # frequency bandwidth.
+        self._ind_ret = np.logical_and(
+            self.pulse.v_grid * 1e-12 * 2 >= self.min_sig_fthz,
+            self.pulse.v_grid * 1e-12 * 2 <= self.max_sig_fthz,
         ).nonzero()[0]
 
         self._intrplt_spctrgrm_to_sim_grid()
 
         ind_start = np.argmin(abs(self.T_fs - start_time))
         ind_end = np.argmin(abs(self.T_fs - end_time))
-        delay_time = self.T_fs[ind_start:ind_end]
-        time_order_ps = np.c_[delay_time * 1e-3, np.arange(ind_start, ind_end)]
+        delay_time = self.T_fs[ind_start:ind_end] * 1e-15  # mks units
+        time_order = np.c_[delay_time, np.arange(ind_start, ind_end)]
 
-        j_excl = np.ones(len(self.pulse.F_THz))
-        j_excl[self.ind_pm_fthz] = 0
-        j_excl = j_excl.nonzero()[0]  # everything but ind_pm_fthz
+        j_excl = np.ones(len(self.pulse.v_grid))
+        j_excl[self.ind_ret] = 0
+        j_excl = j_excl.nonzero()[0]  # everything but ind_ret
 
         error = np.zeros(itermax)
         rng = np.random.default_rng()
 
-        AT = np.zeros((itermax, len(self.pulse.AT)), dtype=np.complex128)
+        AT = np.zeros((itermax, len(self.pulse.a_t)), dtype=np.complex128)
 
         if plot_update:
             fig, (ax1, ax2) = plt.subplots(1, 2)
             ax3 = ax2.twinx()
 
         for itr in range(itermax):
-            rng.shuffle(time_order_ps, axis=0)
+            rng.shuffle(time_order, axis=0)
             alpha = abs(0.2 + rng.standard_normal(1) / 20)
-            for dt, j in time_order_ps:
+            for dt, j in time_order:
                 j = int(j)
 
-                AT_shift = shift(self.pulse.AT, self.pulse.V_THz, dt)
-                psi_j = AT_shift * self.pulse.AT
+                AT_shift = shift(
+                    self.pulse.a_t, self.pulse.v_grid - self.pulse.v_ref, dt
+                )
+                psi_j = AT_shift * self.pulse.a_t
                 phi_j = fft(psi_j)
 
                 amp = abs(phi_j)
-                amp[self.ind_pm_fthz] = np.sqrt(self.spectrogram_interp[j])
+                amp[self.ind_ret] = np.sqrt(self.spectrogram_interp[j])
                 phase = np.arctan2(phi_j.imag, phi_j.real)
                 phi_j[:] = amp * np.exp(1j * phase)
 
@@ -650,49 +735,47 @@ class Retrieval:
                 psi_jp = ifft(phi_j)
                 corr1 = AT_shift.conj() * (psi_jp - psi_j) / np.max(abs(AT_shift) ** 2)
                 corr2 = (
-                    self.pulse.AT.conj()
-                    * (psi_jp - psi_j)
-                    / np.max(abs(self.pulse.AT) ** 2)
+                    self.pulse.a_t.conj() * (psi_jp - psi_j) / np.max(self.pulse.p_t)
                 )
-                corr2 = shift(corr2, self.pulse.V_THz, -dt)
+                corr2 = shift(corr2, self.pulse.v_grid - self.pulse.v_ref, -dt)
 
-                self.pulse.set_AT(self.pulse.AT + alpha * corr1 + alpha * corr2)
+                self.pulse.a_t = self.pulse.a_t + alpha * corr1 + alpha * corr2
 
                 # _____________________________________________________________
                 # substitution of power spectrum
                 if iter_set is not None:
                     if itr >= iter_set:
-                        phase = np.arctan2(self.pulse.AW.imag, self.pulse.AW.real)
-                        self.pulse.set_AW(abs(self.pulse_data.AW) * np.exp(1j * phase))
+                        phase = np.arctan2(self.pulse.a_v.imag, self.pulse.a_v.real)
+                        self.pulse.a_v = abs(self.pulse_data.a_v) * np.exp(1j * phase)
                 # _____________________________________________________________
                 # center T0
-                ind = np.argmax(abs(self.pulse.AT) ** 2)
-                center = self.pulse.NPTS // 2
-                self.pulse.set_AT(np.roll(self.pulse.AT, center - ind))
+                ind = np.argmax(self.pulse.p_t)
+                center = self.pulse.n // 2
+                self.pulse.a_t = np.roll(self.pulse.a_t, center - ind)
                 # _____________________________________________________________
 
             # _________________________________________________________________
             # preparing for substitution of power spectrum
             if iter_set is not None:
                 if itr == iter_set - 1:  # the one before iter_set
-                    self.pulse_data.set_epp(self.pulse.calc_epp())
+                    self.pulse_data.e_p = self.pulse.e_p
             # _________________________________________________________________
 
             if plot_update:
                 [ax.clear() for ax in [ax1, ax2, ax3]]
-                ax1.plot(self.pulse.T_ps, self.pulse.AT.__abs__() ** 2)
-                ax2.plot(self.pulse.F_THz, self.pulse.AW.__abs__() ** 2)
+                ax1.plot(self.pulse.t_grid * 1e12, self.pulse.p_t)
+                ax2.plot(self.pulse.v_grid * 1e-12, self.pulse.p_v)
                 ax3.plot(
-                    self.pulse.F_THz,
-                    np.unwrap(np.arctan2(self.pulse.AW.imag, self.pulse.AW.real)),
+                    self.pulse.v_grid * 1e-12,
+                    np.unwrap(np.arctan2(self.pulse.a_v.imag, self.pulse.a_v.real)),
                     color="C1",
                 )
                 ax2.set_xlim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
                 fig.suptitle(itr)
                 plt.pause(0.1)
 
-            s = calculate_spectrogram(self.pulse, self.T_fs)[
-                ind_start:ind_end, self.ind_pm_fthz
+            s = calculate_spectrogram(self.pulse, self.T_fs * 1e-15)[
+                ind_start:ind_end, self.ind_ret
             ]
             # error[itr] = np.sqrt(np.sum(abs(s - self.spectrogram_interp) ** 2)) / np.sqrt(
             #     np.sum(abs(self.spectrogram_interp) ** 2))
@@ -702,7 +785,7 @@ class Retrieval:
                 args=[s, self.spectrogram_interp[ind_start:ind_end]],
             )
             error[itr] = res.fun
-            AT[itr] = self.pulse.AT
+            AT[itr] = self.pulse.a_t
 
             print(itr, error[itr])
 
@@ -711,67 +794,57 @@ class Retrieval:
 
     def plot_results(self, set_to_best=True):
         if set_to_best:
-            self.pulse.set_AT(self.AT2D[np.argmin(self.error)])
+            self.pulse.a_t = self.AT2D[np.argmin(self.error)]
 
         fig, ax = plt.subplots(2, 2)
         ax = ax.flatten()
 
         # plot time domain
-        ax[0].plot(self.pulse.T_ps, self.pulse.AT.__abs__() ** 2)
+        ax[0].plot(self.pulse.t_grid * 1e12, self.pulse.p_t)
 
         # plot frequency domain
-        ax[1].plot(self.pulse.F_THz, self.pulse.AW.__abs__() ** 2)
+        ax[1].plot(self.pulse.v_grid * 1e-12, self.pulse.p_v)
         ax[1].set_xlim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
 
         # plot the phase on same plot as frequency domain
         axp = ax[1].twinx()
         ind_sig = np.logical_and(
-            self.pulse.F_THz * 2 >= self.min_sig_fthz,
-            self.pulse.F_THz * 2 <= self.max_sig_fthz,
+            self.pulse.v_grid * 1e-12 * 2 >= self.min_sig_fthz,
+            self.pulse.v_grid * 1e-12 * 2 <= self.max_sig_fthz,
         ).nonzero()[0]
         phase = BBO.rad_to_deg(
             np.unwrap(
-                np.arctan2(self.pulse.AW[ind_sig].imag, self.pulse.AW[ind_sig].real)
+                np.arctan2(self.pulse.a_v[ind_sig].imag, self.pulse.a_v[ind_sig].real)
             )
         )
-        axp.plot(self.pulse.F_THz[ind_sig], phase, color="C1")
+        axp.plot(self.pulse.v_grid[ind_sig] * 1e-12, phase, color="C1")
 
         # plot the experimental spectrogram
         ax[2].pcolormesh(self.T_fs, self.F_THz / 2, self.spectrogram.T, cmap="jet")
         ax[2].set_ylim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
 
         # plot the retrieved spectrogram
-        s = calculate_spectrogram(self.pulse, self.T_fs)
+        s = calculate_spectrogram(self.pulse, self.T_fs * 1e-15)
         ind_spctrmtr = np.logical_and(
-            self.pulse.F_THz * 2 >= min(self.F_THz),
-            self.pulse.F_THz * 2 <= max(self.F_THz),
+            self.pulse.v_grid * 1e-12 * 2 >= min(self.F_THz),
+            self.pulse.v_grid * 1e-12 * 2 <= max(self.F_THz),
         ).nonzero()[0]
         ax[3].pcolormesh(
-            self.T_fs, self.pulse.F_THz[ind_spctrmtr], s[:, ind_spctrmtr].T, cmap="jet"
+            self.T_fs,
+            self.pulse.v_grid[ind_spctrmtr] * 1e-12,
+            s[:, ind_spctrmtr].T,
+            cmap="jet",
         )
         ax[3].set_ylim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
 
         # plot the experimental power spectrum
-        if isinstance(self._pulse_data, fpn.Pulse):
+        if isinstance(self._pulse_data, light.Pulse):
             # res = spo.minimize(func, np.array([1]),
             #                    args=[abs(self.pulse.AW) ** 2, abs(self.pulse_data.AW) ** 2])
             # factor = res.x
-            factor = max(self.pulse.AW.__abs__() ** 2) / max(
-                self.pulse_data.AW.__abs__() ** 2
-            )
+            factor = max(self.pulse.p_v) / max(self.pulse_data.p_v)
             ax[1].plot(
-                self.pulse_data.F_THz,
-                self.pulse_data.AW.__abs__() ** 2 * factor,
+                self.pulse_data.v_grid * 1e-12,
+                self.pulse_data.p_v * factor,
                 color="C2",
             )
-
-
-# n_points = 2**12
-# v_min = sc.c / 1400e-9  # c / 1400 nm
-# v_max = sc.c / 450e-9  # c / 450 nm
-# v0 = sc.c / 835e-9  # c / 835 nm
-# e_p = 550e-12  # 550 pJ
-# t_fwhm = 50e-15  # 50 fs
-
-# pulse = light.Pulse.Sech(n_points, v_min, v_max, v0, e_p, t_fwhm)
-# pulse.rtf_grids(n_harmonic=2, update=True)  # anti-aliasing
