@@ -6,7 +6,7 @@ normalize = lambda vec: vec / np.max(abs(vec))
 
 
 def get_data(path):
-    return np.genfromtxt(path, delimiter=',', skip_header=29)
+    return np.genfromtxt(path, delimiter=",", skip_header=29)
 
 
 class Data:
@@ -20,8 +20,7 @@ class Data:
         self.bandwidth_wl = self.DB3Threshold()
         self.bandwidth = np.diff(self.bandwidth_wl)
 
-    def plot(self, ax=None, color=None, title="", label=None, dB=True,
-             norm=True):
+    def plot(self, ax=None, color=None, title="", label=None, dB=True, norm=True):
         if (not dB) and (not norm):
             y = self.y
         else:
@@ -52,7 +51,6 @@ class Data:
 
     def DB3Threshold(self):
         level = 10 ** (-3 / 10)
-        spl = scipy.interpolate.UnivariateSpline(self.x,
-                                                 normalize(self.y) - level, s=0)
+        spl = scipy.interpolate.UnivariateSpline(self.x, normalize(self.y) - level, s=0)
         roots = spl.roots()
         return roots[[0, -1]]
