@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.constants as sc
-import pynlo_connor as pynlo
+import pynlo
 
 
 def scaling_gbeam(z_to_focus, v0, a_eff):

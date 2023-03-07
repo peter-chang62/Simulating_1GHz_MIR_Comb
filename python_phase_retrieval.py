@@ -2,11 +2,12 @@
 utilities file for phase_retrieval.py
 """
 import numpy as np
-from pynlo_connor import light
+import pynlo
 import scipy.constants as sc
 import scipy.integrate as scint
 import matplotlib.pyplot as plt
 import BBO
+from scipy.fftpack import next_fast_len
 import scipy.interpolate as spi
 import utilities as util
 import copy
@@ -29,7 +30,7 @@ def normalize(x):
     return x / np.max(abs(x))
 
 
-def fft(x, axis=None):
+def fft(x, axis=None, fsc=1.0):
     """
     perform fft of array x along specified axis
 
@@ -39,6 +40,8 @@ def fft(x, axis=None):
         axis (None, optional):
             None defaults to axis=-1, otherwise specify the axis. By default I
             throw an error if x is not 1D and axis is not specified
+        fsc (float, optional):
+            The forward transform scale factor. The default is 1.0.
 
     Returns:
         ndarray:
@@ -51,15 +54,16 @@ def fft(x, axis=None):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(np.fft.fft(np.fft.ifftshift(x)))
+        return np.fft.fftshift(pynlo.utility.fft.fft(np.fft.ifftshift(x), fsc=fsc))
 
     else:
         return np.fft.fftshift(
-            np.fft.fft(np.fft.ifftshift(x, axes=axis), axis=axis), axes=axis
+            pynlo.utility.fft.fft(np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc),
+            axes=axis,
         )
 
 
-def ifft(x, axis=None):
+def ifft(x, axis=None, fsc=1.0):
     """
     perform ifft of array x along specified axis
 
@@ -69,6 +73,8 @@ def ifft(x, axis=None):
         axis (None, optional):
             None defaults to axis=-1, otherwise specify the axis. By default I
             throw an error if x is not 1D and axis is not specified
+        fsc (float, optional):
+            The forward transform scale factor. The default is 1.0.
 
     Returns:
         ndarray:
@@ -81,15 +87,16 @@ def ifft(x, axis=None):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(np.fft.ifft(np.fft.ifftshift(x)))
+        return np.fft.fftshift(pynlo.utility.fft.ifft(np.fft.ifftshift(x), fsc=fsc))
 
     else:
         return np.fft.fftshift(
-            np.fft.ifft(np.fft.ifftshift(x, axes=axis), axis=axis), axes=axis
+            pynlo.utility.fft.ifft(np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc),
+            axes=axis,
         )
 
 
-def rfft(x, axis=None):
+def rfft(x, axis=None, fsc=1.0):
     """
     perform rfft of array x along specified axis
 
@@ -99,6 +106,8 @@ def rfft(x, axis=None):
         axis (None, optional):
             None defaults to axis=-1, otherwise specify the axis. By default I
             throw an error if x is not 1D and axis is not specified
+        fsc (float, optional):
+            The forward transform scale factor. The default is 1.0.
 
     Returns:
         ndarray:
@@ -116,13 +125,15 @@ def rfft(x, axis=None):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.rfft(np.fft.ifftshift(x))
+        return pynlo.utility.fft.rfft(np.fft.ifftshift(x), fsc=fsc)
 
     else:
-        return np.fft.rfft(np.fft.ifftshift(x, axes=axis), axis=axis)
+        return pynlo.utility.fft.rfft(
+            np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc
+        )
 
 
-def irfft(x, axis=None):
+def irfft(x, axis=None, fsc=1.0):
     """
     perform irfft of array x along specified axis
 
@@ -132,6 +143,8 @@ def irfft(x, axis=None):
         axis (None, optional):
             None defaults to axis=-1, otherwise specify the axis. By default I
             throw an error if x is not 1D and axis is not specified
+        fsc (float, optional):
+            The forward transform scale factor. The default is 1.0.
 
     Returns:
         ndarray:
@@ -150,13 +163,15 @@ def irfft(x, axis=None):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(np.fft.irfft(x))
+        return np.fft.fftshift(pynlo.utility.fft.irfft(x, fsc=fsc))
 
     else:
-        return np.fft.fftshift(np.fft.irfft(x, axis=axis), axes=axis)
+        return np.fft.fftshift(
+            pynlo.utility.fft.irfft(x, axis=axis, fsc=fsc), axes=axis
+        )
 
 
-def shift(x, freq, shift, freq_is_angular=False, x_is_real=False):
+def shift(x, freq, shift, fsc=1.0, freq_is_angular=False, x_is_real=False):
     """
     shift a 1D or 2D array
 
@@ -165,10 +180,11 @@ def shift(x, freq, shift, freq_is_angular=False, x_is_real=False):
             data to be shifted
         freq (1D array):
             frequency axis (units to be complementary to shift)
-
         shift (float or 1D array):
             float if x is a 1D array, otherwise needs to be an array, one shift
             for each row of x
+        fsc (float, optional):
+            The forward transform scale factor. The default is 1.0.
         freq_is_angular (bool, optional):
             is the freq provided angular frequency or not
         x_is_real (bool, optional):
@@ -202,15 +218,15 @@ def shift(x, freq, shift, freq_is_angular=False, x_is_real=False):
     if x_is_real:
         # real fft's
         # freq's shape should be the same as rfftfreq
-        ft = rfft(x, axis=axis)
+        ft = rfft(x, axis=axis, fsc=fsc)
         ft *= phase
-        return irfft(ft, axis=axis)
+        return irfft(ft, axis=axis, fsc=fsc)
     else:
         # complex fft
         # freq's shape should be the same aas fftfreq
-        ft = fft(x, axis=axis)
+        ft = fft(x, axis=axis, fsc=fsc)
         ft *= phase
-        return ifft(ft, axis=axis)
+        return ifft(ft, axis=axis, fsc=fsc)
 
 
 def calculate_spectrogram(pulse, T_delay):
@@ -227,18 +243,19 @@ def calculate_spectrogram(pulse, T_delay):
         2D array:
             the calculated spectrogram over pulse.v_grid and T_delay
     """
-    assert isinstance(pulse, light.Pulse), "pulse must be a Pulse instance"
+    assert isinstance(pulse, pynlo.light.Pulse), "pulse must be a Pulse instance"
     AT = np.zeros((len(T_delay), len(pulse.a_t)), dtype=np.complex128)
     AT[:] = pulse.a_t
     AT_shift = shift(
         AT,
         pulse.v_grid - pulse.v_ref,  # identical to fftfreq
         T_delay,
+        fsc=pulse.dt,
         freq_is_angular=False,
         x_is_real=False,
     )
     AT2 = AT * AT_shift
-    AW2 = fft(AT2, axis=1)
+    AW2 = fft(AT2, axis=1, fsc=pulse.dt)
     return abs(AW2) ** 2
 
 
@@ -330,6 +347,65 @@ def func(gamma, args):
     return np.sqrt(np.mean(abs(normalize(spctgm) - gamma * normalize(spctgm_exp)) ** 2))
 
 
+class TFGrid:
+    def __init__(self, n_points, v0, v_min, v_max, time_window):
+        assert isinstance(n_points, int)
+        assert time_window > 0
+        assert 0 < v_min < v0 < v_max
+
+        v_span_pos = (v_max - v0) * 2.0
+        v_span_neg = (v0 - v_min) * 2.0
+        v_span = max([v_span_pos, v_span_neg])
+
+        n_points_min = next_fast_len(int(np.ceil(v_span * time_window)))
+        if n_points_min > n_points:
+            print(
+                f"changing n_points from {n_points} to {n_points_min} to"
+                " match time and frequenc bandwidths"
+            )
+            n_points = n_points_min
+        else:
+            n_points_faster = next_fast_len(n_points)
+            if n_points_faster != n_points:
+                print(
+                    f"changing n_points from {n_points} to {n_points_faster}"
+                    " for faster fft's"
+                )
+                n_points = n_points_faster
+
+        self._dt = time_window / n_points
+        self._v_grid = np.fft.fftshift(np.fft.fftfreq(n_points, self._dt))
+        self._v_grid += v0
+        self._dv = np.diff(self._v_grid)[0]
+        self._t_grid = np.fft.fftshift(np.fft.fftfreq(n_points, self._dv))
+        self._v0 = v0
+        self._v_ref = v0
+
+    @property
+    def dt(self):
+        return self._dt
+
+    @property
+    def t_grid(self):
+        return self._t_grid
+
+    @property
+    def dv(self):
+        return self._dv
+
+    @property
+    def v_grid(self):
+        return self._v_grid
+
+    @property
+    def v0(self):
+        return self._v0
+
+    @property
+    def v_ref(self):
+        return self._v0
+
+
 class Retrieval:
     def __init__(self):
         self._wl_nm = None
@@ -413,13 +489,15 @@ class Retrieval:
 
     @property
     def pulse(self):
-        assert isinstance(self._pulse, light.Pulse), "no initial guess has been set yet"
+        assert isinstance(
+            self._pulse, pynlo.light.Pulse
+        ), "no initial guess has been set yet"
         return self._pulse
 
     @property
     def pulse_data(self):
         assert isinstance(
-            self._pulse_data, light.Pulse
+            self._pulse_data, pynlo.light.Pulse
         ), "no spectrum data has been loaded yet"
         return self._pulse_data
 
@@ -580,11 +658,13 @@ class Retrieval:
         # --------------- switched to using connor's pynlo class --------------
         T0 = np.diff(roots[[0, -1]]) * 0.65 / 1.76
         self._pulse = util.Pulse.Sech(
-            n_points=NPTS,
-            time_window=time_window_ps * 1e-12,
-            center_wl=center_wavelength_nm * 1e-9,
-            t_fwhm=T0 * 1e-15,  # T0 is in fs
-            e_p=5.0e-9,
+            NPTS,
+            sc.c / 3.5e-6,
+            sc.c / 450e-9,
+            sc.c / (center_wavelength_nm * 1e-9),
+            1.0e-9,
+            T0 * 1e-15,
+            time_window_ps * 1e-12,
         )
         phase = np.random.uniform(low=0, high=1, size=self.pulse.n) * np.pi / 8
         self._pulse.a_t = self._pulse.a_t * np.exp(1j * phase)
@@ -610,7 +690,7 @@ class Retrieval:
         # where you have no (or very little) power (experimental error)
         assert np.all(spectrum >= 0), "a negative spectrum is not physical"
 
-        pulse_data: light.Pulse
+        pulse_data: pynlo.light.Pulse
         pulse_data = copy.deepcopy(self.pulse)
         p_v_callable = spi.interp1d(
             wl_um, spectrum, kind="linear", bounds_error=False, fill_value=0.0
@@ -666,7 +746,7 @@ class Retrieval:
         """
 
         assert (iter_set is None) or (
-            isinstance(self.pulse_data, light.Pulse) and isinstance(iter_set, int)
+            isinstance(self.pulse_data, pynlo.light.Pulse) and isinstance(iter_set, int)
         )
 
         # self._ind_ret = np.logical_and(
@@ -710,10 +790,13 @@ class Retrieval:
                 j = int(j)
 
                 AT_shift = shift(
-                    self.pulse.a_t, self.pulse.v_grid - self.pulse.v_ref, dt
+                    self.pulse.a_t,
+                    self.pulse.v_grid - self.pulse.v_ref,
+                    dt,
+                    fsc=self.pulse.dt,
                 )
                 psi_j = AT_shift * self.pulse.a_t
-                phi_j = fft(psi_j)
+                phi_j = fft(psi_j, fsc=self.pulse.dt)
 
                 amp = abs(phi_j)
                 amp[self.ind_ret] = np.sqrt(self.spectrogram_interp[j])
@@ -732,12 +815,14 @@ class Retrieval:
                 phi_j[j_excl] = denoise(phi_j[j_excl], 1e-3 * abs(phi_j).max())
                 # phi_j[:] = denoise(phi_j[:], 1e-3 * abs(phi_j).max())  # or not
 
-                psi_jp = ifft(phi_j)
+                psi_jp = ifft(phi_j, fsc=self.pulse.dt)
                 corr1 = AT_shift.conj() * (psi_jp - psi_j) / np.max(abs(AT_shift) ** 2)
                 corr2 = (
                     self.pulse.a_t.conj() * (psi_jp - psi_j) / np.max(self.pulse.p_t)
                 )
-                corr2 = shift(corr2, self.pulse.v_grid - self.pulse.v_ref, -dt)
+                corr2 = shift(
+                    corr2, self.pulse.v_grid - self.pulse.v_ref, -dt, fsc=self.pulse.dt
+                )
 
                 self.pulse.a_t = self.pulse.a_t + alpha * corr1 + alpha * corr2
 
@@ -838,7 +923,7 @@ class Retrieval:
         ax[3].set_ylim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
 
         # plot the experimental power spectrum
-        if isinstance(self._pulse_data, light.Pulse):
+        if isinstance(self._pulse_data, pynlo.light.Pulse):
             # res = spo.minimize(func, np.array([1]),
             #                    args=[abs(self.pulse.AW) ** 2, abs(self.pulse_data.AW) ** 2])
             # factor = res.x

@@ -1,4 +1,4 @@
-import pynlo_connor as pynlo
+import pynlo
 import scipy.constants as sc
 import numpy as np
 import scipy
