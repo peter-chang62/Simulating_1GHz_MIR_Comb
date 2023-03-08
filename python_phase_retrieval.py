@@ -2,16 +2,15 @@
 utilities file for phase_retrieval.py
 """
 import numpy as np
-import pynlo
 import scipy.constants as sc
 import scipy.integrate as scint
 import matplotlib.pyplot as plt
 import BBO
 from scipy.fftpack import next_fast_len
 import scipy.interpolate as spi
-import utilities as util
 import copy
 import scipy.optimize as spo
+import mkl_fft
 
 
 def normalize(x):
@@ -54,11 +53,11 @@ def fft(x, axis=None, fsc=1.0):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(pynlo.utility.fft.fft(np.fft.ifftshift(x), fsc=fsc))
+        return np.fft.fftshift(mkl_fft.fft(np.fft.ifftshift(x), forward_scale=fsc))
 
     else:
         return np.fft.fftshift(
-            pynlo.utility.fft.fft(np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc),
+            mkl_fft.fft(np.fft.ifftshift(x, axes=axis), axis=axis, forward_scale=fsc),
             axes=axis,
         )
 
@@ -87,11 +86,11 @@ def ifft(x, axis=None, fsc=1.0):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(pynlo.utility.fft.ifft(np.fft.ifftshift(x), fsc=fsc))
+        return np.fft.fftshift(mkl_fft.ifft(np.fft.ifftshift(x), forward_scale=fsc))
 
     else:
         return np.fft.fftshift(
-            pynlo.utility.fft.ifft(np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc),
+            mkl_fft.ifft(np.fft.ifftshift(x, axes=axis), axis=axis, forward_scale=fsc),
             axes=axis,
         )
 
@@ -125,11 +124,11 @@ def rfft(x, axis=None, fsc=1.0):
 
     if axis is None:
         # default is axis=-1
-        return pynlo.utility.fft.rfft(np.fft.ifftshift(x), fsc=fsc)
+        return mkl_fft.rfft_numpy(np.fft.ifftshift(x), forwrard_scale=fsc)
 
     else:
-        return pynlo.utility.fft.rfft(
-            np.fft.ifftshift(x, axes=axis), axis=axis, fsc=fsc
+        return mkl_fft.rfft_numpy(
+            np.fft.ifftshift(x, axes=axis), axis=axis, forwrard_scale=fsc
         )
 
 
@@ -163,11 +162,11 @@ def irfft(x, axis=None, fsc=1.0):
 
     if axis is None:
         # default is axis=-1
-        return np.fft.fftshift(pynlo.utility.fft.irfft(x, fsc=fsc))
+        return np.fft.fftshift(mkl_fft.irfft_numpy(x, forward_scale=fsc))
 
     else:
         return np.fft.fftshift(
-            pynlo.utility.fft.irfft(x, axis=axis, fsc=fsc), axes=axis
+            mkl_fft.irfft_numpy(x, axis=axis, forward_scale=fsc), axes=axis
         )
 
 
@@ -243,12 +242,12 @@ def calculate_spectrogram(pulse, T_delay):
         2D array:
             the calculated spectrogram over pulse.v_grid and T_delay
     """
-    assert isinstance(pulse, pynlo.light.Pulse), "pulse must be a Pulse instance"
+    assert isinstance(pulse, Pulse), "pulse must be a Pulse instance"
     AT = np.zeros((len(T_delay), len(pulse.a_t)), dtype=np.complex128)
     AT[:] = pulse.a_t
     AT_shift = shift(
         AT,
-        pulse.v_grid - pulse.v_ref,  # identical to fftfreq
+        pulse.v_grid - pulse.v0,  # identical to fftfreq
         T_delay,
         fsc=pulse.dt,
         freq_is_angular=False,
@@ -348,15 +347,23 @@ def func(gamma, args):
 
 
 class TFGrid:
+
+    """
+    I need v0 to be centered on the frequency grid for the phase retrieval
+    algorithm to work
+    """
+
     def __init__(self, n_points, v0, v_min, v_max, time_window):
         assert isinstance(n_points, int)
         assert time_window > 0
         assert 0 < v_min < v0 < v_max
 
+        # ------------- calculate frequency bandwidth -------------------------
         v_span_pos = (v_max - v0) * 2.0
         v_span_neg = (v0 - v_min) * 2.0
         v_span = max([v_span_pos, v_span_neg])
 
+        # calculate points needed to span both time and frequency bandwidth ---
         n_points_min = next_fast_len(int(np.ceil(v_span * time_window)))
         if n_points_min > n_points:
             print(
@@ -373,13 +380,20 @@ class TFGrid:
                 )
                 n_points = n_points_faster
 
+        # ------------- create time and frequency grids -----------------------
         self._dt = time_window / n_points
         self._v_grid = np.fft.fftshift(np.fft.fftfreq(n_points, self._dt))
         self._v_grid += v0
+
         self._dv = np.diff(self._v_grid)[0]
         self._t_grid = np.fft.fftshift(np.fft.fftfreq(n_points, self._dv))
+
         self._v0 = v0
-        self._v_ref = v0
+        self._n = n_points
+
+    @property
+    def n(self):
+        return self._n
 
     @property
     def dt(self):
@@ -402,8 +416,115 @@ class TFGrid:
         return self._v0
 
     @property
-    def v_ref(self):
-        return self._v0
+    def wl_grid(self):
+        return sc.c / self.v_grid
+
+
+class Pulse(TFGrid):
+    def __init__(self, n_points, v0, v_min, v_max, time_window, a_t):
+        super().__init__(n_points, v0, v_min, v_max, time_window)
+
+        self._a_t = a_t
+
+    @property
+    def a_t(self):
+        """
+        time domain electric field
+
+        Returns:
+            1D array
+        """
+        return self._a_t
+
+    @property
+    def a_v(self):
+        """
+        frequency domain electric field is given as the fft of the time domain
+        electric field
+
+        Returns:
+            1D array
+        """
+        return fft(self.a_t, fsc=self.dt)
+
+    @a_t.setter
+    def a_t(self, a_t):
+        """
+        set the time domain electric field
+
+        Args:
+            a_t (1D array)
+        """
+        self._a_t = a_t.astype(np.complex128)
+
+    @a_v.setter
+    def a_v(self, a_v):
+        """
+        setting the frequency domain electric field is accomplished by setting
+        the time domain electric field
+
+        Args:
+            a_v (1D array)
+        """
+        self.a_t = ifft(a_v, fsc=self.dt)
+
+    @property
+    def p_t(self):
+        """
+        time domain power
+
+        Returns:
+            1D array
+        """
+        return abs(self.a_t) ** 2
+
+    @property
+    def p_v(self):
+        """
+        frequency domain power
+
+        Returns:
+            1D array
+        """
+        return abs(self.a_v) ** 2
+
+    @property
+    def e_p(self):
+        """
+        pulse energy is calculated by integrating the time domain power
+
+        Returns:
+            float
+        """
+        return scint.simpson(self.p_t, dx=self.dt)
+
+    @e_p.setter
+    def e_p(self, e_p):
+        """
+        setting the pulse energy is done by scaling the electric field
+
+        Args:
+            e_p (float)
+        """
+        e_p_old = self.e_p
+        factor_p_t = e_p / e_p_old
+        self.a_t = self.a_t * factor_p_t**0.5
+
+    @classmethod
+    def Sech(cls, n_points, v0, v_min, v_max, time_window, e_p, t_fwhm):
+        assert t_fwhm > 0
+        assert e_p > 0
+
+        tf = TFGrid(n_points, v0, v_min, v_max, time_window)
+        tf: TFGrid
+
+        a_t = 1 / np.cosh(2 * np.arccosh(2**0.5) * tf.t_grid / t_fwhm)
+
+        p = cls(tf.n, v0, v_min, v_max, time_window, a_t)
+        p: Pulse
+
+        p.e_p = e_p
+        return p
 
 
 class Retrieval:
@@ -489,15 +610,13 @@ class Retrieval:
 
     @property
     def pulse(self):
-        assert isinstance(
-            self._pulse, pynlo.light.Pulse
-        ), "no initial guess has been set yet"
+        assert isinstance(self._pulse, Pulse), "no initial guess has been set yet"
         return self._pulse
 
     @property
     def pulse_data(self):
         assert isinstance(
-            self._pulse_data, pynlo.light.Pulse
+            self._pulse_data, Pulse
         ), "no spectrum data has been loaded yet"
         return self._pulse_data
 
@@ -627,10 +746,19 @@ class Retrieval:
         self._max_pm_fthz = self.F_THz[ind_10perc]
 
     def set_initial_guess(
-        self, center_wavelength_nm=1560, time_window_ps=10, NPTS=2**12
+        self,
+        wl_min_nm=1000.0,
+        wl_max_nm=2000.0,
+        center_wavelength_nm=1560,
+        time_window_ps=10,
+        NPTS=2**12,
     ):
         """
         Args:
+            wl_min_nm (float, optional):
+                minimum wavlength, default is 1 um
+            wl_max_nm (float, optional):
+                maximum wavelength, default is 2 um
             center_wavelength_nm (float, optional):
                 center wavelength in nanometers, default is 1560
             time_window_ps (int, optional):
@@ -656,15 +784,16 @@ class Retrieval:
         roots = spl.roots()
 
         # --------------- switched to using connor's pynlo class --------------
-        T0 = np.diff(roots[[0, -1]]) * 0.65 / 1.76
-        self._pulse = util.Pulse.Sech(
+        # T0 = np.diff(roots[[0, -1]]) * 0.65 / 1.76
+        T0 = np.diff(roots[[0, -1]]) * 0.65  # 1.76 factor already in pulse class
+        self._pulse = Pulse.Sech(
             NPTS,
-            sc.c / 3.5e-6,
-            sc.c / 450e-9,
             sc.c / (center_wavelength_nm * 1e-9),
+            sc.c / (wl_max_nm * 1e-9),
+            sc.c / (wl_min_nm * 1e-9),
+            time_window_ps * 1e-12,
             1.0e-9,
             T0 * 1e-15,
-            time_window_ps * 1e-12,
         )
         phase = np.random.uniform(low=0, high=1, size=self.pulse.n) * np.pi / 8
         self._pulse.a_t = self._pulse.a_t * np.exp(1j * phase)
@@ -690,12 +819,12 @@ class Retrieval:
         # where you have no (or very little) power (experimental error)
         assert np.all(spectrum >= 0), "a negative spectrum is not physical"
 
-        pulse_data: pynlo.light.Pulse
+        pulse_data: Pulse
         pulse_data = copy.deepcopy(self.pulse)
         p_v_callable = spi.interp1d(
             wl_um, spectrum, kind="linear", bounds_error=False, fill_value=0.0
         )
-        p_v = p_v_callable(pulse_data.wl * 1e6)
+        p_v = p_v_callable(pulse_data.wl_grid * 1e6)
         pulse_data.a_v = p_v**0.5  # phase = 0
         self._pulse_data = pulse_data
 
@@ -746,7 +875,7 @@ class Retrieval:
         """
 
         assert (iter_set is None) or (
-            isinstance(self.pulse_data, pynlo.light.Pulse) and isinstance(iter_set, int)
+            isinstance(self.pulse_data, Pulse) and isinstance(iter_set, int)
         )
 
         # self._ind_ret = np.logical_and(
@@ -791,7 +920,7 @@ class Retrieval:
 
                 AT_shift = shift(
                     self.pulse.a_t,
-                    self.pulse.v_grid - self.pulse.v_ref,
+                    self.pulse.v_grid - self.pulse.v0,
                     dt,
                     fsc=self.pulse.dt,
                 )
@@ -821,7 +950,7 @@ class Retrieval:
                     self.pulse.a_t.conj() * (psi_jp - psi_j) / np.max(self.pulse.p_t)
                 )
                 corr2 = shift(
-                    corr2, self.pulse.v_grid - self.pulse.v_ref, -dt, fsc=self.pulse.dt
+                    corr2, self.pulse.v_grid - self.pulse.v0, -dt, fsc=self.pulse.dt
                 )
 
                 self.pulse.a_t = self.pulse.a_t + alpha * corr1 + alpha * corr2
@@ -923,7 +1052,7 @@ class Retrieval:
         ax[3].set_ylim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
 
         # plot the experimental power spectrum
-        if isinstance(self._pulse_data, pynlo.light.Pulse):
+        if isinstance(self._pulse_data, Pulse):
             # res = spo.minimize(func, np.array([1]),
             #                    args=[abs(self.pulse.AW) ** 2, abs(self.pulse_data.AW) ** 2])
             # factor = res.x

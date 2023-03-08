@@ -3,8 +3,9 @@ import scipy.constants as sc
 import pynlo
 
 
-def scaling_gbeam(z_to_focus, v0, a_eff):
-    """Summary
+def gbeam_area_scaling(z_to_focus, v0, a_eff):
+    """
+    A gaussian beam can be accounted for by scaling the chi2 and chi3 parameter
 
     Args:
         z_to_focus (float):
@@ -20,14 +21,60 @@ def scaling_gbeam(z_to_focus, v0, a_eff):
                 1 / sqrt[ (pi * w^2) / (pi * w_0^2) ]
 
     Notes:
-        The chi2 parameter scales as one over the square root of effective
-        area, hence the scaling here
+        returns 1 / (current area / original area)
     """
     w_0 = np.sqrt(a_eff / np.pi)  # beam radius
     wl = sc.c / v0
     z_R = np.pi * w_0**2 / wl  # rayleigh length
     w = w_0 * np.sqrt(1 + (z_to_focus / z_R) ** 2)
-    return 1 / (np.pi * w**2 / a_eff) ** 0.5
+    return 1 / (np.pi * w**2 / a_eff)
+
+
+def chi2_gbeam_scaling(z_to_focus, v0, a_eff):
+    """
+    scaling for the chi2 parameter for gaussian beam
+
+    Args:
+        z_to_focus (float):
+            the distance from the focus
+        v0 (float):
+            center frequency
+        a_eff (float):
+            effective area (pi * w_0^2)
+
+    Returns:
+        float:
+            the ratio of areas^1/2:
+                1 / sqrt[ (pi * w^2) / (pi * w_0^2) ]
+
+    Notes:
+        The chi2 parameter scales as 1 / sqrt[a_eff]
+    """
+    return gbeam_area_scaling(z_to_focus, v0, a_eff) ** 0.5
+
+
+def chi3_gbeam_scaling(z_to_focus, v0, a_eff):
+    """
+    scaling for the chi3 parameter for gaussian beam
+
+    Args:
+        z_to_focus (float):
+            the distance from the focus
+        v0 (float):
+            center frequency
+        a_eff (float):
+            effective area (pi * w_0^2)
+
+    Returns:
+        float:
+            the ratio of areas^1/2:
+                1 / sqrt[ (pi * w^2) / (pi * w_0^2) ]
+
+    Notes:
+        The chi3 parameter scales as 1 / a_eff. This is the same as chi2 but
+        without the square root
+    """
+    return gbeam_area_scaling(z_to_focus, v0, a_eff)
 
 
 def n_MgLN_G(v, T=24.5, axis="e"):
@@ -212,7 +259,7 @@ class PPLN:
         a_eff,
         length,
         polling_period=None,
-        polling_sign=None,
+        polling_sign_callable=None,
         is_gaussian_beam=False,
     ):
         """
@@ -227,7 +274,7 @@ class PPLN:
                 crystal or waveguide length
             polling_period (None, optional):
                 polling period, default is None which is no polling
-            polling_sign (None, optional):
+            polling_sign_callable (None, optional):
                 a callable that gives the current polling sign as a function of
                 z, default is None
             is_gaussian_beam (bool, optional):
@@ -238,50 +285,55 @@ class PPLN:
                 a PyNLO model instance
 
         Notes:
-            polling_period and polling_sign cannot both be provided,
+            polling_period and polling_sign_callable cannot both be provided,
             if "is_gaussian_beam" is set to True, then the chi2 parameter is
             scaled by the ratio of effective areas^1/2 as a function of z
         """
         # --------- assert statements ---------
         assert isinstance(pulse, pynlo.light.Pulse)
         assert not np.all(
-            [polling_period is None, polling_sign is None]
+            [polling_period is None, polling_sign_callable is None]
         ), "cannot both set a polling period and a callable function for the polling sign"
 
-        # -------- define polling_sign callable ---------
+        # -------- define polling_sign_callable callable ---------
         if polling_period is not None:
             assert isinstance(polling_period, float)
-            polling_sign = lambda z: np.sign(np.cos(2 * np.pi * z / polling_period))
+            polling_sign_callable = lambda z: np.sign(
+                np.cos(2 * np.pi * z / polling_period)
+            )
 
-        elif polling_sign is not None:
-            assert callable(polling_sign)  # great, we already have it
+        elif polling_sign_callable is not None:
+            assert callable(polling_sign_callable)  # great, we already have it
 
-        # ------ g2 ---------
+        # ------ g2 and g3---------
         g2_array = self.g2_shg(pulse.v_grid, pulse.v0, a_eff)
-        # --- continue working ---
+        g3_array = self.g3(pulse.v_grid, a_eff)
 
-        # make g2 callable
+        # make g2 and g3 callable if the mode is a gaussian beam
         if is_gaussian_beam:
 
             def g2_func(z):
                 z_to_focus = z - length / 2
-                return g2_array * scaling_gbeam(z_to_focus, pulse.v0, a_eff)
+                return g2_array * chi2_gbeam_scaling(z_to_focus, pulse.v0, a_eff)
+
+            def g3_func(z):
+                z_to_focus = z - length / 2
+                return g3_array * chi3_gbeam_scaling(z_to_focus, pulse.v0, a_eff)
 
             g2 = g2_func
+            g3 = g3_func
 
         else:
             g2 = g2_array
-
-        # ----- g3 ---------
-        g3 = self.g3(pulse.v_grid, a_eff)
+            g3 = g3_array
 
         # ----- mode and model ---------
         mode = pynlo.media.Mode(
             pulse.v_grid,
             self.beta(pulse.v_grid),
             g2_v=g2,  # callable if gaussian beam
-            g2_inv=polling_sign,  # callable
-            g3_v=g3,
+            g2_inv=polling_sign_callable,  # callable
+            g3_v=g3,  # callable if gaussian beam
             z=0.0,
         )
 

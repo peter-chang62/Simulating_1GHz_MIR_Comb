@@ -24,9 +24,15 @@ ret.set_signal_freq(360, 420)
 ret.correct_for_phase_matching()
 
 # %% __________________________________________________________________________
-ret.set_initial_guess(1560, 10, 2**10)
+ret.set_initial_guess(
+    wl_min_nm=1350.0,
+    wl_max_nm=1700.0,
+    center_wavelength_nm=1560,
+    time_window_ps=25,
+    NPTS=2**9,
+)
 ret.load_spectrum_data(osa.x * 1e-3, osa.y)
-ret.retrieve(0, 900, 50, iter_set=10, plot_update=True)
+ret.retrieve(0, 900, 50, iter_set=15, plot_update=True)
 ret.plot_results()
 
 # %% __________________________________________________________________________
