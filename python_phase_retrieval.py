@@ -751,7 +751,7 @@ class Retrieval:
         wl_max_nm=2000.0,
         center_wavelength_nm=1560,
         time_window_ps=10,
-        NPTS=2**12,
+        NPTS=4096
     ):
         """
         Args:
