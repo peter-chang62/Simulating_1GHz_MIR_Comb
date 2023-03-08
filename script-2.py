@@ -34,11 +34,11 @@ gridded = spi.interp1d(
 e_p = pulse.e_p
 p_v = gridded(pulse.wl_grid)
 p_v = np.where(p_v > 0, p_v, 1e-20)
-pulse.a_v = p_v ** 0.5
+pulse.a_v = p_v**0.5
 pulse.e_p = e_p
 
 # %% ---------------- define ppln and model instance --------------------------
-a_eff = np.pi * 15.0e-6 ** 2
+a_eff = np.pi * 15.0e-6**2
 length = 1e-3
 polling_period = 31e-6
 
@@ -48,7 +48,7 @@ model = ppln.generate_model(
     a_eff=a_eff,
     length=length,
     polling_period=polling_period,
-    is_gaussian_beam=True
+    is_gaussian_beam=True,
 )
 
 # %% ---------------- run simulation ------------------------------------------
@@ -59,4 +59,5 @@ pulse_out, z, a_t, a_v = model.simulate(
 )
 
 # %% ---------------- plot results --------------------------------------------
+util.animate(pulse_out, model, z, a_t, a_v, plot="wvl")
 util.plot_results(pulse_out, z, a_t, a_v, "wvl")

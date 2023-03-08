@@ -199,6 +199,25 @@ def plot_results(pulse_out, z, a_t, a_v, plot="frq"):
 
 
 def animate(pulse_out, model, z, a_t, a_v, plot="frq"):
+    """
+    replay the real time simulation
+
+    Args:
+        pulse_out (object):
+            reference pulse instance for time and frequency grid
+        model (object):
+            pynlo.model.SM_UPE instance used in the simulation
+        z (1D array):
+            z grid returned from the call to model.simulate()
+        a_t (2D array):
+            time domain electric fields returned from the call to
+            model.simulate()
+        a_v (TYPE):
+            frequency domain electric fields returned from the call to
+            model.simulate()
+        plot (str, optional):
+            "frq", "wvl" or "time"
+    """
     assert np.any(
         [plot == "frq", plot == "wvl", plot == "time"]
     ), "plot must be 'frq' or 'wvl'"
