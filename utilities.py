@@ -128,7 +128,7 @@ def z_grid_from_polling_period(polling_period, length):
     return z_grid
 
 
-def plot_results(pulse_out, z, a_t, a_v):
+def plot_results(pulse_out, z, a_t, a_v, plot="frq"):
     """
     plot PyNLO simulation results
 
@@ -139,8 +139,12 @@ def plot_results(pulse_out, z, a_t, a_v):
         z (1D array): simulation z grid points
         a_t (2D array): a_t at each z grid point
         a_v (2D array): a_v at each z grid point
+        plot (string, optional):
+            whether to plot the frequency domain with frequency or wavelength
+            on the x axis, default is frequency
     """
     pulse_out: pynlo.light.pulse_out
+    assert np.any([plot == "frq", plot == "wvl"]), "plot must be 'frq' or 'wvl'"
 
     fig = plt.figure("Simulation Results", clear=True)
     ax0 = plt.subplot2grid((3, 2), (0, 0), rowspan=1)
@@ -150,13 +154,33 @@ def plot_results(pulse_out, z, a_t, a_v):
 
     p_v_dB = 10 * np.log10(np.abs(a_v) ** 2)
     p_v_dB -= p_v_dB.max()
-    ax0.plot(1e-12 * pulse_out.v_grid, p_v_dB[0], color="b")
-    ax0.plot(1e-12 * pulse_out.v_grid, p_v_dB[-1], color="g")
-    ax2.pcolormesh(
-        1e-12 * pulse_out.v_grid, 1e3 * z, p_v_dB, vmin=-40.0, vmax=0, shading="auto"
-    )
-    ax0.set_ylim(bottom=-50, top=10)
-    ax2.set_xlabel("Frequency (THz)")
+    if plot == "frq":
+        ax0.plot(1e-12 * pulse_out.v_grid, p_v_dB[0], color="b")
+        ax0.plot(1e-12 * pulse_out.v_grid, p_v_dB[-1], color="g")
+        ax2.pcolormesh(
+            1e-12 * pulse_out.v_grid,
+            1e3 * z,
+            p_v_dB,
+            vmin=-40.0,
+            vmax=0,
+            shading="auto",
+        )
+        ax0.set_ylim(bottom=-50, top=10)
+        ax2.set_xlabel("Frequency (THz)")
+    elif plot == "wvl":
+        wl_grid = sc.c / pulse_out.v_grid
+        ax0.plot(1e6 * wl_grid, p_v_dB[0], color="b")
+        ax0.plot(1e6 * wl_grid, p_v_dB[-1], color="g")
+        ax2.pcolormesh(
+            1e6 * wl_grid,
+            1e3 * z,
+            p_v_dB,
+            vmin=-40.0,
+            vmax=0,
+            shading="auto",
+        )
+        ax0.set_ylim(bottom=-50, top=10)
+        ax2.set_xlabel("wavelength ($\\mathrm{\\mu m}$)")
 
     p_t_dB = 10 * np.log10(np.abs(a_t) ** 2)
     p_t_dB -= p_t_dB.max()
@@ -172,3 +196,110 @@ def plot_results(pulse_out, z, a_t, a_v):
     ax2.set_ylabel("Propagation Distance (mm)")
     fig.tight_layout()
     fig.show()
+
+
+def animate(pulse_out, model, z, a_t, a_v, plot="frq"):
+    assert np.any(
+        [plot == "frq", plot == "wvl", plot == "time"]
+    ), "plot must be 'frq' or 'wvl'"
+    assert isinstance(pulse_out, pynlo.light.Pulse)
+    assert isinstance(model, pynlo.model.SM_UPE)
+    pulse_out: pynlo.light.Pulse
+    model: pynlo.model.SM_UPE
+
+    fig, ax = plt.subplots(2, 1, num="Replay of Simulation", clear=True)
+    ax0, ax1 = ax
+
+    wl_grid = sc.c / pulse_out.v_grid
+
+    p_v = abs(a_v) ** 2
+    p_t = abs(a_t) ** 2
+    phi_t = np.angle(a_t)
+    phi_v = np.angle(a_v)
+
+    vg_t = pulse_out.v_ref + np.gradient(
+        np.unwrap(phi_t) / (2 * np.pi), pulse_out.t_grid, edge_order=2, axis=1
+    )
+    tg_v = pulse_out.t_ref - np.gradient(
+        np.unwrap(phi_v) / (2 * np.pi), pulse_out.v_grid, edge_order=2, axis=1
+    )
+
+    for n in range(len(a_t)):
+        [i.clear() for i in [ax0, ax1]]
+
+        if plot == "time":
+            ax0.semilogy(pulse_out.t_grid * 1e12, p_t[n], ".", markersize=1)
+            ax1.plot(
+                pulse_out.t_grid * 1e12,
+                vg_t[n] * 1e-12,
+                ".",
+                markersize=1,
+                label=f"z = {np.round(z[n] * 1e3, 3)} mm",
+            )
+
+            ax0.set_title("Instantaneous Power")
+            ax0.set_ylabel("J / s")
+            ax0.set_xlabel("Delay (ps)")
+            ax1.set_ylabel("Frequency (THz)")
+            ax1.set_xlabel("Delay (ps)")
+
+            excess = 0.05 * (pulse_out.v_grid.max() - pulse_out.v_grid.min())
+            ax0.set_ylim(top=max(p_t[n] * 1e1), bottom=max(p_t[n] * 1e-9))
+            ax1.set_ylim(
+                top=1e-12 * (pulse_out.v_grid.max() + excess),
+                bottom=1e-12 * (pulse_out.v_grid.min() - excess),
+            )
+
+        if plot == "frq":
+            ax0.semilogy(pulse_out.v_grid * 1e-12, p_v[n], ".", markersize=1)
+            ax1.plot(
+                pulse_out.v_grid * 1e-12,
+                tg_v[n] * 1e12,
+                ".",
+                markersize=1,
+                label=f"z = {np.round(z[n] * 1e3, 3)} mm",
+            )
+
+            ax0.set_title("Power Spectrum")
+            ax0.set_ylabel("J / Hz")
+            ax0.set_xlabel("Frequency (THz)")
+            ax1.set_ylabel("Delay (ps)")
+            ax1.set_xlabel("Frequency (THz)")
+
+            excess = 0.05 * (pulse_out.t_grid.max() - pulse_out.t_grid.min())
+            ax0.set_ylim(top=max(p_v[n] * 1e1), bottom=max(p_v[n] * 1e-9))
+            ax1.set_ylim(
+                top=1e12 * (pulse_out.t_grid.max() + excess),
+                bottom=1e12 * (pulse_out.t_grid.min() - excess),
+            )
+
+        if plot == "wvl":
+            ax0.semilogy(wl_grid * 1e6, p_v[n] * model.dv_dl, ".", markersize=1)
+            ax1.plot(
+                wl_grid * 1e6,
+                tg_v[n] * 1e12,
+                ".",
+                markersize=1,
+                label=f"z = {np.round(z[n] * 1e3, 3)} mm",
+            )
+
+            ax0.set_title("Power Spectrum")
+            ax0.set_ylabel("J / m")
+            ax0.set_xlabel("Wavelength ($\\mathrm{\\mu m}$)")
+            ax1.set_ylabel("Delay (ps)")
+            ax1.set_xlabel("Wavelength ($\\mathrm{\\mu m}$)")
+
+            excess = 0.05 * (pulse_out.t_grid.max() - pulse_out.t_grid.min())
+            ax0.set_ylim(
+                top=max(p_v[n] * model.dv_dl * 1e1),
+                bottom=max(p_v[n] * model.dv_dl * 1e-9),
+            )
+            ax1.set_ylim(
+                top=1e12 * (pulse_out.t_grid.max() + excess),
+                bottom=1e12 * (pulse_out.t_grid.min() - excess),
+            )
+
+        ax1.legend(loc="upper center")
+        if n == 0:
+            fig.tight_layout()
+        plt.pause(0.05)

@@ -751,7 +751,7 @@ class Retrieval:
         wl_max_nm=2000.0,
         center_wavelength_nm=1560,
         time_window_ps=10,
-        NPTS=4096
+        NPTS=4096,
     ):
         """
         Args:
@@ -929,7 +929,7 @@ class Retrieval:
 
                 amp = abs(phi_j)
                 amp[self.ind_ret] = np.sqrt(self.spectrogram_interp[j])
-                phase = np.arctan2(phi_j.imag, phi_j.real)
+                phase = np.angle(phi_j)
                 phi_j[:] = amp * np.exp(1j * phase)
 
                 # denoise everything that is not inside the wavelength range of
@@ -959,7 +959,7 @@ class Retrieval:
                 # substitution of power spectrum
                 if iter_set is not None:
                     if itr >= iter_set:
-                        phase = np.arctan2(self.pulse.a_v.imag, self.pulse.a_v.real)
+                        phase = np.angle(self.pulse.a_v)
                         self.pulse.a_v = abs(self.pulse_data.a_v) * np.exp(1j * phase)
                 # _____________________________________________________________
                 # center T0
@@ -981,7 +981,7 @@ class Retrieval:
                 ax2.plot(self.pulse.v_grid * 1e-12, self.pulse.p_v)
                 ax3.plot(
                     self.pulse.v_grid * 1e-12,
-                    np.unwrap(np.arctan2(self.pulse.a_v.imag, self.pulse.a_v.real)),
+                    np.unwrap(np.angle(self.pulse.a_v)),
                     color="C1",
                 )
                 ax2.set_xlim(self.min_sig_fthz / 2, self.max_sig_fthz / 2)
@@ -1026,11 +1026,7 @@ class Retrieval:
             self.pulse.v_grid * 1e-12 * 2 >= self.min_sig_fthz,
             self.pulse.v_grid * 1e-12 * 2 <= self.max_sig_fthz,
         ).nonzero()[0]
-        phase = BBO.rad_to_deg(
-            np.unwrap(
-                np.arctan2(self.pulse.a_v[ind_sig].imag, self.pulse.a_v[ind_sig].real)
-            )
-        )
+        phase = BBO.rad_to_deg(np.unwrap(np.angle(self.pulse.a_v[ind_sig])))
         axp.plot(self.pulse.v_grid[ind_sig] * 1e-12, phase, color="C1")
 
         # plot the experimental spectrogram
