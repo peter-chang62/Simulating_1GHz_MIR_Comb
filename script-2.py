@@ -55,7 +55,7 @@ model = ppln.generate_model(
 dz = util.estimate_step_size(model=model, local_error=1e-6)
 z_grid = util.z_grid_from_polling_period(polling_period, length)
 pulse_out, z, a_t, a_v = model.simulate(
-    z_grid, dz=dz, local_error=1e-6, n_records=100, plot="time"
+    z_grid, dz=dz, local_error=1e-6, n_records=100, plot=None
 )
 
 # %% ---------------- plot results --------------------------------------------
