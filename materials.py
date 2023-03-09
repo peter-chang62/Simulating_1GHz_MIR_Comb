@@ -339,3 +339,30 @@ class PPLN:
 
         model = pynlo.model.SM_UPE(pulse, mode)
         return model
+
+
+# -------------------------- fiber parameters ---------------------------------
+
+# --- unit conversions -----
+ps_nm_km = 1e-12 * 1e-9 * 1e-3  # convert ps/(nm km) -> s/m^2
+ps_nm2_km = 1e-12 * 1e-9**2 * 1e-3  # convert ps/(nm^2 km) -> s/m^3
+um = 1e-6
+km = 1e3
+nm = 1e-9
+W = 1.0
+dB_to_linear = lambda x: 10 ** (x / 10)
+
+# ---------- OFS fibers ----
+
+# fiber ID 15021110740001
+hnlf_2p2 = {
+    "D slow axis": 2.2 * ps_nm_km,
+    "D slope slow axis": 0.026 * ps_nm2_km,
+    "D fast axis": 1.0 * ps_nm_km,
+    "D slope fast axis": 0.024 * ps_nm2_km,
+    "cut off wavelength": 1360 * nm,
+    "mode field diameter at 1550 nm": 4 * um,
+    "effective area at 1550 nm": 12.7 * um**2,
+    "nonlinear coefficient": 10.5 / (W * km),
+    "fiber attenuation at 1550 nm": dB_to_linear(-0.78) / km,
+}

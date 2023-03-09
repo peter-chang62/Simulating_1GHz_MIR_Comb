@@ -526,6 +526,35 @@ class Pulse(TFGrid):
         p.e_p = e_p
         return p
 
+    def chirp_pulse_W(self, *chirp, v0=None):
+        """
+        chirp a pulse
+
+        Args:
+            *chirp (float):
+                any number of floats representing gdd, tod, fod ... in seconds
+            v0 (None, optional):
+                center frequency for the taylor expansion, default is v0 of the
+                pulse
+        """
+        assert [isinstance(i, float) for i in chirp]
+        assert len(chirp) > 0
+
+        if v0 is None:
+            v0 = self.v0
+        else:
+            assert np.all([isinstance(v0, float), v0 > 0])
+
+        v_grid = self.v_grid - v0
+        w_grid = v_grid * 2 * np.pi
+
+        factorial = np.math.factorial
+        phase = 0
+        for n, c in enumerate(chirp):
+            n += 2  # start from 2
+            phase += (c / factorial(n)) * w_grid**n
+        self.a_v *= np.exp(1j * phase)
+
 
 class Retrieval:
     def __init__(self):

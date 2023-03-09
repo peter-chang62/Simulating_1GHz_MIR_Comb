@@ -72,6 +72,7 @@ class Pulse(pynlo.light.Pulse):
         # from here it is the same as the Sech classmethod from
         # pynlo.light.Pulse, with the addition of a default call to rtf_grids
         pulse = super().Sech(n_points, v_min, v_max, v0, e_p, t_fwhm)
+        pulse: Pulse
         pulse.rtf_grids(n_harmonic=2, update=True)  # anti-aliasing
 
         return pulse
@@ -86,6 +87,35 @@ class Pulse(pynlo.light.Pulse):
                 wavelength axis
         """
         return sc.c / self.v_grid
+
+    def chirp_pulse_W(self, *chirp, v0=None):
+        """
+        chirp a pulse
+
+        Args:
+            *chirp (float):
+                any number of floats representing gdd, tod, fod ... in seconds
+            v0 (None, optional):
+                center frequency for the taylor expansion, default is v0 of the
+                pulse
+        """
+        assert [isinstance(i, float) for i in chirp]
+        assert len(chirp) > 0
+
+        if v0 is None:
+            v0 = self.v0
+        else:
+            assert np.all([isinstance(v0, float), v0 > 0])
+
+        v_grid = self.v_grid - v0
+        w_grid = v_grid * 2 * np.pi
+
+        factorial = np.math.factorial
+        phase = 0
+        for n, c in enumerate(chirp):
+            n += 2  # start from 2
+            phase += (c / factorial(n)) * w_grid**n
+        self.a_v *= np.exp(1j * phase)
 
 
 def estimate_step_size(model, local_error=1e-6):
