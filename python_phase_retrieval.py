@@ -1,6 +1,4 @@
-"""
-utilities file for phase_retrieval.py
-"""
+import pynlo
 import numpy as np
 import scipy.constants as sc
 import scipy.integrate as scint
@@ -511,7 +509,7 @@ class Pulse(TFGrid):
         self.a_t = self.a_t * factor_p_t**0.5
 
     @classmethod
-    def Sech(cls, n_points, v0, v_min, v_max, time_window, e_p, t_fwhm):
+    def Sech(cls, n_points, v_min, v_max, v0, e_p, t_fwhm, time_window):
         assert t_fwhm > 0
         assert e_p > 0
 
@@ -554,6 +552,59 @@ class Pulse(TFGrid):
             n += 2  # start from 2
             phase += (c / factorial(n)) * w_grid**n
         self.a_v *= np.exp(1j * phase)
+
+    def import_p_v(self, v_grid, p_v, phi_v=None):
+        """
+        import experimental spectrum
+
+        Args:
+            v_grid (1D array of floats):
+                frequency grid
+            p_v (1D array of floats):
+                power spectrum
+            phi_v (1D array of floats, optional):
+                phase, default is transform limited, you would set this
+                if you have a frog retrieval, for example
+        """
+        p_v = np.where(p_v > 0, p_v, 1e-20)
+        amp_v = p_v**0.5
+        amp_v = spi.interp1d(
+            v_grid, amp_v, kind="cubic", bounds_error=False, fill_value=1e-20
+        )(self.v_grid)
+
+        if phi_v is not None:
+            assert isinstance(phi_v, np.ndarray) and phi_v.shape == p_v.shape
+            phi_v = spi.interp1d(
+                v_grid, phi_v, kind="cubic", bounds_error=False, fill_value=0.0
+            )(self.v_grid)
+        else:
+            phi_v = 0.0
+
+        a_v = amp_v * np.exp(1j * phi_v)
+
+        e_p = self.e_p
+        self.a_v = a_v
+        self.e_p = e_p
+
+    @classmethod
+    def clone_pulse(cls, pulse):
+        assert isinstance(pulse, Pulse) or isinstance(pulse, pynlo.light.Pulse)
+        pulse: Pulse
+        n_points = pulse.n
+        v_min = pulse.v_grid[0]
+        v_max = pulse.v_grid[-1]
+        v0 = pulse.v0
+        e_p = pulse.e_p
+        time_window = np.diff(pulse.t_grid[[0, -1]])
+        t_fwhm = 200e-15  # only affects power spectrum in the Sech call
+
+        p = cls.Sech(n_points, v_min, v_max, v0, e_p, t_fwhm, time_window)
+
+        if isinstance(pulse, Pulse):
+            p.a_v[:] = pulse.a_v[:]
+        else:
+            p.import_p_v(pulse.v_grid, pulse.p_v, phi_v=pulse.phi_v)
+        return p
 
 
 class Retrieval:
@@ -817,12 +868,12 @@ class Retrieval:
         T0 = np.diff(roots[[0, -1]]) * 0.65  # 1.76 factor already in pulse class
         self._pulse = Pulse.Sech(
             NPTS,
-            sc.c / (center_wavelength_nm * 1e-9),
             sc.c / (wl_max_nm * 1e-9),
             sc.c / (wl_min_nm * 1e-9),
-            time_window_ps * 1e-12,
+            sc.c / (center_wavelength_nm * 1e-9),
             1.0e-9,
             T0 * 1e-15,
+            time_window_ps * 1e-12,
         )
         phase = np.random.uniform(low=0, high=1, size=self.pulse.n) * np.pi / 8
         self._pulse.a_t = self._pulse.a_t * np.exp(1j * phase)

@@ -338,7 +338,7 @@ class PPLN:
             z=0.0,
         )
 
-        model = pynlo.model.SM_UPE(pulse, mode)
+        model = util.SM_UPE(pulse, mode)
         return model
 
 
@@ -622,5 +622,33 @@ hnlf_2p2 = {
     "D fast axis": 1.0 * ps / (nm * km),
     "D slope fast axis": 0.024 * ps / (nm**2 * km),
     "nonlinear coefficient": 10.5 / (W * km),
+    "center wavelength": 1550 * nm,
+}
+
+# fiber ID 15021110740002
+hnlf_5p7 = {
+    "D slow axis": 5.7 * ps / (nm * km),
+    "D slope slow axis": 0.027 * ps / (nm**2 * km),
+    "D fast axis": 5.1 * ps / (nm * km),
+    "D slope fast axis": 0.026 * ps / (nm**2 * km),
+    "nonlinear coefficient": 10.5 / (W * km),
+    "center wavelength": 1550 * nm,
+}
+
+# fiber ID 15021110740002
+hnlf_5p7_pooja = {
+    "D slow axis": 4.88 * ps / (nm * km),
+    "D slope slow axis": 0.0228 * ps / (nm**2 * km),
+    "D fast axis": 5.1 * ps / (nm * km),
+    "D slope fast axis": 0.026 * ps / (nm**2 * km),
+    "nonlinear coefficient": 10.9 / (W * km),
+    "center wavelength": 1550 * nm,
+}
+
+# fiber ID 15021110740002
+pm1550 = {
+    "D slow axis": 18 * ps / (nm * km),
+    "D slope slow axis": 0.0612 * ps / (nm**2 * km),
+    "nonlinear coefficient": 1.0 / (W * km),
     "center wavelength": 1550 * nm,
 }

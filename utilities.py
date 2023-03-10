@@ -4,6 +4,7 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 import scipy.interpolate as spi
+import python_phase_retrieval as pr
 
 
 class Pulse(pynlo.light.Pulse):
@@ -100,8 +101,8 @@ class Pulse(pynlo.light.Pulse):
                 center frequency for the taylor expansion, default is v0 of the
                 pulse
         """
-        assert [isinstance(i, float) for i in chirp]
         assert len(chirp) > 0
+        assert [isinstance(i, float) for i in chirp]
 
         if v0 is None:
             v0 = self.v0
@@ -131,11 +132,11 @@ class Pulse(pynlo.light.Pulse):
                 phase, default is transform limited, you would set this
                 if you have a frog retrieval, for example
         """
+        p_v = np.where(p_v > 0, p_v, 1e-20)
         amp_v = p_v**0.5
         amp_v = spi.interp1d(
             v_grid, amp_v, kind="cubic", bounds_error=False, fill_value=1e-20
         )(self.v_grid)
-        amp_v = np.where(amp_v > 0, amp_v, 1e-20)
 
         if phi_v is not None:
             assert isinstance(phi_v, np.ndarray) and phi_v.shape == p_v.shape
@@ -150,6 +151,28 @@ class Pulse(pynlo.light.Pulse):
         e_p = self.e_p
         self.a_v = a_v
         self.e_p = e_p
+
+    @classmethod
+    def clone_pulse(cls, pulse):
+        assert isinstance(pulse, pynlo.light.Pulse)
+        pulse: pynlo.light.Pulse
+        n_points = pulse.n
+        v_min = pulse.v_grid[0]
+        v_max = pulse.v_grid[-1]
+        v0 = pulse.v0
+        e_p = pulse.e_p
+        time_window = np.diff(pulse.t_grid[[0, -1]])
+        t_fwhm = 200e-15  # only affects power spectrum in the Sech call
+
+        p = cls.Sech(n_points, v_min, v_max, v0, e_p, t_fwhm, time_window)
+        p.a_v[:] = pulse.a_v[:]
+        return p
+
+    def calculate_spectrogram(self, t_grid):
+        p = pr.Pulse.clone_pulse(self)
+        s = pr.calculate_spectrogram(p, t_grid)
+        ind = np.logical_and(self.v_grid.min() < p.v_grid, p.v_grid < self.v_grid.max())
+        return p.v_grid[ind], s[:, ind]
 
 
 def estimate_step_size(model, local_error=1e-6):
@@ -266,7 +289,7 @@ def plot_results(pulse_out, z, a_t, a_v, plot="frq"):
     fig.show()
 
 
-def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False):
+def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False, p_ref=None):
     """
     replay the real time simulation
 
@@ -285,14 +308,21 @@ def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False):
             model.simulate()
         plot (str, optional):
             "frq", "wvl" or "time"
+        save (bool, optional):
+            save figures to fig/ folder, default is False (see ezgif.com)
+        p_ref (pulse instance, optional):
+            a reference pulse to overlay all the plots, useful if you have a
+            measured spectrum to compare against to
     """
     assert np.any(
         [plot == "frq", plot == "wvl", plot == "time"]
     ), "plot must be 'frq' or 'wvl'"
     assert isinstance(pulse_out, pynlo.light.Pulse)
     assert isinstance(model, pynlo.model.SM_UPE)
+    assert isinstance(p_ref, pynlo.light.Pulse) or p_ref is None
     pulse_out: pynlo.light.Pulse
     model: pynlo.model.SM_UPE
+    p_ref: pynlo.light.Pulse
 
     fig, ax = plt.subplots(2, 1, num="Replay of Simulation", clear=True)
     ax0, ax1 = ax
@@ -347,6 +377,9 @@ def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False):
                 label=f"z = {np.round(z[n] * 1e3, 3)} mm",
             )
 
+            if p_ref is not None:
+                ax0.semilogy(p_ref.v_grid * 1e-12, p_ref.p_v, ".", markersize=1)
+
             ax0.set_title("Power Spectrum")
             ax0.set_ylabel("J / Hz")
             ax0.set_xlabel("Frequency (THz)")
@@ -369,6 +402,11 @@ def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False):
                 markersize=1,
                 label=f"z = {np.round(z[n] * 1e3, 3)} mm",
             )
+
+            if p_ref is not None:
+                ax0.semilogy(
+                    p_ref.wl_grid * 1e6, p_ref.p_v * model.dv_dl, ".", markersize=1
+                )
 
             ax0.set_title("Power Spectrum")
             ax0.set_ylabel("J / m")
@@ -403,13 +441,15 @@ def package_sim_output(simulate):
 
         class result:
             def __init__(self):
-                self.pulse_out = pulse_out
+                self.pulse_out = Pulse.clone_pulse(pulse_out)
                 self.z = z
                 self.a_t = a_t
                 self.a_v = a_v
+                self.p_t = abs(a_t) ** 2
+                self.p_v = abs(a_v) ** 2
                 self.model = model
 
-            def animate(self, plot, save=False):
+            def animate(self, plot, save=False, p_ref=None):
                 animate(
                     self.pulse_out,
                     self.model,
@@ -418,6 +458,7 @@ def package_sim_output(simulate):
                     self.a_v,
                     plot=plot,
                     save=save,
+                    p_ref=p_ref,
                 )
 
             def plot(self, plot):
@@ -448,9 +489,11 @@ class SM_UPE(pynlo.model.SM_UPE):
     for the simulate call
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, pulse, mode):
+        super().__init__(pulse, mode)
 
     @package_sim_output
-    def simulate(self, *args, **kwargs):
-        return super().simulate(*args, **kwargs)
+    def simulate(self, z_grid, dz=None, local_error=1e-6, n_records=None, plot=None):
+        return super().simulate(
+            z_grid, dz=dz, local_error=local_error, n_records=n_records, plot=plot
+        )

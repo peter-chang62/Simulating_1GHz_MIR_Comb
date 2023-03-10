@@ -41,16 +41,14 @@ model = ppln.generate_model(
     a_eff=a_eff,
     length=length,
     polling_period=polling_period,
-    is_gaussian_beam=True,
+    is_gaussian_beam=1,
 )
 
 # %% ---------------- run simulation ------------------------------------------
 dz = util.estimate_step_size(model=model, local_error=1e-6)
 z_grid = util.z_grid_from_polling_period(polling_period, length)
-pulse_out, z, a_t, a_v = model.simulate(
-    z_grid, dz=dz, local_error=1e-6, n_records=100, plot=None
-)
+result = model.simulate(z_grid, dz=dz, local_error=1e-6, n_records=100, plot=None)
 
 # %% ---------------- plot results --------------------------------------------
-util.animate(pulse_out, model, z, a_t, a_v, plot="wvl")
-util.plot_results(pulse_out, z, a_t, a_v, "wvl")
+result.animate("wvl", save=False, p_ref=None)
+result.plot("wvl")
