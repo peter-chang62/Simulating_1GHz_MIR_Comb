@@ -1,11 +1,11 @@
+"""
+PPLN simulation
+"""
 # %% package imports
 import materials
 import utilities as util
 import scipy.constants as sc
 import numpy as np
-import scipy.interpolate as spi
-import matplotlib.pyplot as plt
-import clipboard_and_style_sheet
 
 
 # %% ---------------- define pulse instance -----------------------------------
@@ -28,14 +28,7 @@ pulse = util.Pulse.Sech(
 )
 
 data = np.genfromtxt("Data/Spectrum_Stitched_Together_wl_nm.txt")
-gridded = spi.interp1d(
-    data[:, 0] * 1e-9, data[:, 1], kind="cubic", bounds_error=False, fill_value=1e-20
-)
-e_p = pulse.e_p
-p_v = gridded(pulse.wl_grid)
-p_v = np.where(p_v > 0, p_v, 1e-20)
-pulse.a_v = p_v**0.5
-pulse.e_p = e_p
+pulse.import_p_v(sc.c / (data[:, 0] * 1e-9), data[:, 1])
 
 # %% ---------------- define ppln and model instance --------------------------
 a_eff = np.pi * 15.0e-6**2

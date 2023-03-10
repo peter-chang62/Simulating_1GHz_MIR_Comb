@@ -1,4 +1,4 @@
-"""Maybe retake this FROG..."""
+"""phase retrieval"""
 
 import clipboard_and_style_sheet
 import PullDataFromOSA as OSA

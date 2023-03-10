@@ -82,15 +82,8 @@ class BBOSHG:
         return np.sqrt(1 + term1 + term2 + term3)
 
     def _term_sellmeier(self, wl_um, num, denom):
-        """Summary
-
-        Args:
-            wl_um (TYPE): Description
-            num (TYPE): Description
-            denom (TYPE): Description
-
-        Returns:
-            TYPE: Description
+        """
+        convenience function to reduce clutter in ne and no
         """
         return (num * wl_um**2) / (wl_um**2 - denom)
 
@@ -152,7 +145,7 @@ class BBOSHG:
 
         return k2 - 2 * k1 * np.cos(alpha_rad)
 
-    """takeen from page 14 in Trebino's FROG book:
+    """taken from page 14 in Trebino's FROG book:
 
     R. Trebino, A. Baltuška, M. S. Pshenichnikov, and D. A. Wiersma, “Measuring
     Ultrashort Pulsesin the Single-Cycle Regime:Frequency-Resolved Optical

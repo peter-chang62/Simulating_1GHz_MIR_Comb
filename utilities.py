@@ -3,6 +3,7 @@ import scipy.constants as sc
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
+import scipy.interpolate as spi
 
 
 class Pulse(pynlo.light.Pulse):
@@ -117,10 +118,45 @@ class Pulse(pynlo.light.Pulse):
             phase += (c / factorial(n)) * w_grid**n
         self.a_v *= np.exp(1j * phase)
 
+    def import_p_v(self, v_grid, p_v, phi_v=None):
+        """
+        import experimental spectrum
+
+        Args:
+            v_grid (1D array of floats):
+                frequency grid
+            p_v (1D array of floats):
+                power spectrum
+            phi_v (1D array of floats, optional):
+                phase, default is transform limited, you would set this
+                if you have a frog retrieval, for example
+        """
+        amp_v = p_v**0.5
+        amp_v = spi.interp1d(
+            v_grid, amp_v, kind="cubic", bounds_error=False, fill_value=1e-20
+        )(self.v_grid)
+        amp_v = np.where(amp_v > 0, amp_v, 1e-20)
+
+        if phi_v is not None:
+            assert isinstance(phi_v, np.ndarray) and phi_v.shape == p_v.shape
+            phi_v = spi.interp1d(
+                v_grid, phi_v, kind="cubic", bounds_error=False, fill_value=0.0
+            )(self.v_grid)
+        else:
+            phi_v = 0.0
+
+        a_v = amp_v * np.exp(1j * phi_v)
+
+        e_p = self.e_p
+        self.a_v = a_v
+        self.e_p = e_p
+
 
 def estimate_step_size(model, local_error=1e-6):
     """
-    estimate the step size for PyNLO simulation
+    estimate the step size for PyNLO simulation, this is the same as connor's
+    default call except n=20 instead of n=10 (just following some of his
+    example files)
 
     Args:
         model (object):
@@ -140,7 +176,9 @@ def estimate_step_size(model, local_error=1e-6):
 def z_grid_from_polling_period(polling_period, length):
     """
     Generate the z grid points from a fixed polling period. The grid points are
-    all the inversion points
+    all the inversion points. I think this is important if including polling
+    in a crystal to make sure that it doesn't "miss" any of the
+    quasi-phasematching
 
     Args:
         polling_period (float):
@@ -228,7 +266,7 @@ def plot_results(pulse_out, z, a_t, a_v, plot="frq"):
     fig.show()
 
 
-def animate(pulse_out, model, z, a_t, a_v, plot="frq"):
+def animate(pulse_out, model, z, a_t, a_v, plot="frq", save=False):
     """
     replay the real time simulation
 
@@ -351,4 +389,68 @@ def animate(pulse_out, model, z, a_t, a_v, plot="frq"):
         ax1.legend(loc="upper center")
         if n == 0:
             fig.tight_layout()
-        plt.pause(0.05)
+
+        if save:
+            plt.savefig(f"fig/{n}.png")
+        else:
+            plt.pause(0.05)
+
+
+def package_sim_output(simulate):
+    def wrapper(self, *args, **kwargs):
+        pulse_out, z, a_t, a_v = simulate(self, *args, **kwargs)
+        model = self
+
+        class result:
+            def __init__(self):
+                self.pulse_out = pulse_out
+                self.z = z
+                self.a_t = a_t
+                self.a_v = a_v
+                self.model = model
+
+            def animate(self, plot, save=False):
+                animate(
+                    self.pulse_out,
+                    self.model,
+                    self.z,
+                    self.a_t,
+                    self.a_v,
+                    plot=plot,
+                    save=save,
+                )
+
+            def plot(self, plot):
+                plot_results(self.pulse_out, self.z, self.a_t, self.a_v, plot=plot)
+
+            def save(self, path, filename):
+                assert path != "" and isinstance(path, str), "give a save path"
+                assert filename != "" and isinstance(filename, str)
+
+                path = path + "/" if path[-1] != "" else path
+                np.save(path + filename + "_t_grid.npy", self.pulse_out.t_grid)
+                np.save(path + filename + "_v_grid.npy", self.pulse_out.v_grid)
+                np.save(path + filename + "_z.npy", self.z)
+                np.save(path + filename + "_amp_t.npy", abs(self.pulse_out.a_t))
+                np.save(path + filename + "_amp_v.npy", abs(self.pulse_out.a_v))
+                np.save(path + filename + "_phi_t.npy", np.angle(self.pulse_out.a_t))
+                np.save(path + filename + "_phi_v.npy", np.angle(self.pulse_out.a_v))
+
+        return result()
+
+    return wrapper
+
+
+class SM_UPE(pynlo.model.SM_UPE):
+
+    """
+    This is the same as connor's SM_UPE but with the package_sim_output wrapper
+    for the simulate call
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @package_sim_output
+    def simulate(self, *args, **kwargs):
+        return super().simulate(*args, **kwargs)

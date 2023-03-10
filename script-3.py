@@ -1,9 +1,8 @@
+"""comparing spectrograms from chirping a pulse"""
+
 import matplotlib.pyplot as plt
-import clipboard_and_style_sheet as cr
 import numpy as np
 import utilities as util
-import materials
-import pynlo
 import scipy.constants as sc
 import python_phase_retrieval as pr
 import scipy.interpolate as spi
