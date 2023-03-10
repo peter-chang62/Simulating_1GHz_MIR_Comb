@@ -1,5 +1,6 @@
 """nonlinear fiber simulation"""
 
+# %%
 import scipy.constants as sc
 import utilities as util
 import copy
@@ -7,12 +8,14 @@ import materials
 import numpy as np
 import matplotlib.pyplot as plt
 import python_phase_retrieval as pr
+from scipy.special import erf
+import clipboard_and_style_sheet
 
 
 # %% a pulse to work with
 n_points = 2**11
-min_wl = 450e-9
-max_wl = 3.5e-6
+min_wl = 400e-9
+max_wl = 10e-6
 center_wl = 1550e-9
 t_fwhm = 50e-15
 time_window = 10e-12
@@ -32,9 +35,6 @@ pulse = util.Pulse.Sech(
 s_grat = np.genfromtxt("Data/Spectrum_grating_pair.txt")
 pulse.import_p_v(sc.c / (s_grat[:, 0] * 1e-9), s_grat[:, 1], phi_v=None)
 
-s_hnlf = np.genfromtxt("data/Spectrum_Stitched_Together_wl_nm.txt")
-p = copy.deepcopy(pulse)
-p.import_p_v(sc.c / (s_hnlf[:, 0] * 1e-9), s_hnlf[:, 1])
 
 # %%
 pm1550 = materials.Fiber()
@@ -45,6 +45,7 @@ result_pm1550 = model_pm1550.simulate(
     17e-2, dz=dz, local_error=1e-6, n_records=100, plot=None
 )
 
+# %%
 hnlf = materials.Fiber()
 hnlf.load_fiber_from_dict(materials.hnlf_5p7_pooja, "slow")
 model_hnlf = hnlf.generate_model(result_pm1550.pulse_out)
@@ -53,32 +54,57 @@ result_hnlf = model_hnlf.simulate(
     2.0e-2, dz=dz, local_error=1e-6, n_records=100, plot=None
 )
 
+# %%
+pulse_ppln = result_hnlf.pulse_out.clone_pulse(result_hnlf.pulse_out)
+ind_z = np.argmin(abs(result_hnlf.z - 8.88e-3))
+a_v = result_hnlf.a_v[ind_z]
+pulse_ppln.import_p_v(result_hnlf.pulse_out.v_grid, abs(a_v) ** 2, phi_v=np.angle(a_v))
 
-# result_pm1550.animate("wvl", save=False)
-# result_hnlf.animate("wvl", save=False, p_ref=p)
+a_eff = np.pi * 15.0e-6**2
+length = 1e-3
+polling_period = 30.0e-6
+ppln = materials.PPLN()
+model = ppln.generate_model(
+    pulse_ppln,
+    a_eff,
+    length,
+    polling_period=polling_period,
+    is_gaussian_beam=True,
+)
+
+dz = util.estimate_step_size(model, local_error=1e-6)
+z_grid = util.z_grid_from_polling_period(polling_period, length)
+result_ppln = model.simulate(z_grid, dz=dz, local_error=1e-6, n_records=100)
+
+# %%
+s_hnlf = np.genfromtxt("data/Spectrum_Stitched_Together_wl_nm.txt")
+pulse_data = copy.deepcopy(pulse)
+pulse_data.import_p_v(sc.c / (s_hnlf[:, 0] * 1e-9), s_hnlf[:, 1])
+result_pm1550.animate("wvl", save=True)
+result_hnlf.animate("wvl", save=True, p_ref=pulse_data)
+result_ppln.animate("wvl", save=True, p_ref=None)
 # result_pm1550.plot("wvl")
 # result_hnlf.plot("wvl")
 
 
-ret = pr.Retrieval()
-path = (
-    r"C:\\Users\\Peter\\SynologyDrive"
-    r"/Research_Projects\\FROG\\Data\\11-01-2022_Peter_Chang\\12A_HNLF_output.txt"
-)
-ret.load_data(path)
-
 # %%
+ret = pr.Retrieval()
+ret.load_data("Data/11-01-2022_Peter_Chang/12A_HNLF_output.txt")
+
 fig, ax = plt.subplots(1, 2)
 save = True
 for n, i in enumerate(result_hnlf.a_v):
-    a_v_best = i
+    # create pulse with desired power spectrum
+    a_v = i
     p_best = util.Pulse.clone_pulse(result_hnlf.pulse_out)
-    p_best.a_v = a_v_best
+    p_best.a_v = a_v
 
+    # calculate spectrogram
     T_axis = np.linspace(-250e-15, 250e-15, 500)
     v_grid, s = p_best.calculate_spectrogram(T_axis)
     wl_grid = sc.c * 1e9 / v_grid
 
+    # plotting and saving
     [i.clear() for i in ax]
 
     ind_t = np.logical_and(-250 < ret.T_fs, ret.T_fs < 250).nonzero()[0]
@@ -102,3 +128,9 @@ for n, i in enumerate(result_hnlf.a_v):
         plt.savefig(f"fig/{n}.png")
     else:
         plt.pause(0.05)
+
+# %%
+plt.figure()
+ind_wl = np.logical_and(3.25e-6 < pulse.wl_grid, pulse.wl_grid < 5e-6)
+plt.plot(pulse.wl_grid[ind_wl] * 1e6, result_ppln.pulse_out.p_v[ind_wl])
+plt.xlabel("wavelength ($\\mathrm{\\mu m}$)")

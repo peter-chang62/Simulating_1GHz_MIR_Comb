@@ -2,6 +2,32 @@ import numpy as np
 import scipy.constants as sc
 import pynlo
 import utilities as util
+from scipy.special import erf
+
+
+# absorption coefficient of PPLN
+# TODO I forget where Alex got this from, add a reference to the paper here
+# TODO I think you're okay, but check an overall factor of 2 (alpha or 2 * alpha)
+#  Connor defines it as twice the imaginary part of the propagation constant
+#  swhich I think is consistent with how it's defined in the literature
+def ppln_alpha(v_grid):
+    """
+    This is the absorption coefficient of ppln. When doing DFG and such, you
+    deal with pretty low powers in the MIR, so it actually becomes problematic
+    if you let the simulation generate arbitrarily long wavelengths. I ended
+    uphaving to include the absorption coefficient, which is defined here.
+
+    Args:
+        v_grid (1D array):
+            frequency grid
+
+    Returns:
+        1D array:
+            absorption coefficient
+    """
+    w_grid = v_grid * 2 * np.pi
+    w_grid /= 1e12
+    return 1e6 * (1 + erf(-(w_grid - 300.0) / (10 * np.sqrt(2))))
 
 
 def gbeam_area_scaling(z_to_focus, v0, a_eff):
@@ -292,6 +318,7 @@ class PPLN:
         """
         # --------- assert statements ---------
         assert isinstance(pulse, pynlo.light.Pulse)
+        pulse: pynlo.light.Pulse
         assert not np.all(
             [polling_period is None, polling_sign_callable is None]
         ), "cannot both set a polling period and a callable function for the polling sign"
@@ -332,6 +359,7 @@ class PPLN:
         mode = pynlo.media.Mode(
             pulse.v_grid,
             self.beta(pulse.v_grid),
+            alpha_v=-ppln_alpha(pulse.v_grid),
             g2_v=g2,  # callable if gaussian beam
             g2_inv=polling_sign_callable,  # callable
             g3_v=g3,  # callable if gaussian beam

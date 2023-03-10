@@ -1,14 +1,10 @@
-"""phase retrieval"""
+"""phase retrieval example"""
 
 import clipboard_and_style_sheet
-import PullDataFromOSA as OSA
 import python_phase_retrieval as pr
+import numpy as np
 
 clipboard_and_style_sheet.style_sheet()
-
-# %% --------------------------------------------------------------------------
-osa = OSA.Data("Data/01-18-2022/SPECTRUM_GRAT_PAIR.CSV", False)
-osa.y = abs(osa.y)
 
 # %% --------------------------------------------------------------------------
 ret = pr.Retrieval()
@@ -31,6 +27,9 @@ ret.set_initial_guess(
     time_window_ps=25,
     NPTS=2**9,
 )
-ret.load_spectrum_data(osa.x * 1e-3, osa.y)
-ret.retrieve(0, 900, 50, iter_set=15, plot_update=True)
+
+data = np.genfromtxt("Data/01-18-2022/SPECTRUM_GRAT_PAIR.txt")
+data[:, 1][data[:, 1] < 0] = 0.0
+ret.load_spectrum_data(data[:, 0] * 1e-3, data[:, 1])
+ret.retrieve(0, 900, 50, iter_set=None, plot_update=True)
 ret.plot_results()

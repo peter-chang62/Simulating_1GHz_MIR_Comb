@@ -366,7 +366,7 @@ class TFGrid:
         if n_points_min > n_points:
             print(
                 f"changing n_points from {n_points} to {n_points_min} to"
-                " match time and frequenc bandwidths"
+                " support both time and frequency bandwidths"
             )
             n_points = n_points_min
         else:

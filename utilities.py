@@ -132,10 +132,10 @@ class Pulse(pynlo.light.Pulse):
                 phase, default is transform limited, you would set this
                 if you have a frog retrieval, for example
         """
-        p_v = np.where(p_v > 0, p_v, 1e-20)
+        p_v = np.where(p_v > 0, p_v, 1e-100)
         amp_v = p_v**0.5
         amp_v = spi.interp1d(
-            v_grid, amp_v, kind="cubic", bounds_error=False, fill_value=1e-20
+            v_grid, amp_v, kind="cubic", bounds_error=False, fill_value=1e-100
         )(self.v_grid)
 
         if phi_v is not None:
@@ -154,6 +154,15 @@ class Pulse(pynlo.light.Pulse):
 
     @classmethod
     def clone_pulse(cls, pulse):
+        """
+        clone a pulse instance
+
+        Args:
+            pulse (Pulse instance)
+
+        Returns:
+            pulse
+        """
         assert isinstance(pulse, pynlo.light.Pulse)
         pulse: pynlo.light.Pulse
         n_points = pulse.n
@@ -169,6 +178,25 @@ class Pulse(pynlo.light.Pulse):
         return p
 
     def calculate_spectrogram(self, t_grid):
+        """
+        calculate a spectrogram for an input time delay axis
+
+        Args:
+            t_grid (1D array of floats):
+                time delay axis
+
+        Returns:
+            v_grid (1D array), spectrogram (2D array):
+                the calculated spectrogram, with time indexing row, and
+                frequency indexing the column
+
+        Notes:
+            I have had issues with shifting using fft's if the power spectrum
+            is not centered on the frequency grid. So, here I use the Pulse
+            instance taken from python_phase_retrieval.py. Since the frequency
+            grid there is different, I return the frequency grid here for
+            reference
+        """
         p = pr.Pulse.clone_pulse(self)
         s = pr.calculate_spectrogram(p, t_grid)
         ind = np.logical_and(self.v_grid.min() < p.v_grid, p.v_grid < self.v_grid.max())

@@ -6,12 +6,8 @@ import scipy.constants as sc
 import python_phase_retrieval as pr
 
 # %%
-path = (
-    r"C:\\Users\\Peter\\SynologyDrive"
-    r"/Research_Projects\\FROG\\Data\\11-01-2022_Peter_Chang\\12A_HNLF_output.txt"
-)
 ret = pr.Retrieval()
-ret.load_data(path)
+ret.load_data("Data/11-01-2022_Peter_Chang/12A_HNLF_output.txt")
 
 # %%
 v0 = sc.c / 1560e-9
