@@ -5,11 +5,11 @@ import numpy as np
 import scipy.constants as sc
 import python_phase_retrieval as pr
 
-# %%
+# %% ----------------------------- create retrieval instance ------------------
 ret = pr.Retrieval()
 ret.load_data("Data/11-01-2022_Peter_Chang/12A_HNLF_output.txt")
 
-# %%
+# %% ------------------------------create pulse instance ----------------------
 v0 = sc.c / 1560e-9
 v_min = sc.c / 3.5e-6
 v_max = sc.c / 500e-9
@@ -21,11 +21,11 @@ p = pr.Pulse.Sech(2**11, v_min, v_max, v0, e_p, t_fwhm, time_window)
 data = np.genfromtxt("Data/Spectrum_Stitched_Together_wl_nm.txt")
 p.import_p_v(sc.c / (data[:, 0] * 1e-9), data[:, 1], phi_v=None)
 
-# %%
+# %% ---------------------- chirp pulse and calculate spectrogram -------------
 p.chirp_pulse_W(-5e-29)
 s_tf = pr.calculate_spectrogram(p, ret.T_fs * 1e-15)
 
-# %%
+# %% ----------------------- plotting -----------------------------------------
 ind = np.logical_and(
     ret.wl_nm.min() * 2 < p.wl_grid * 1e9, p.wl_grid * 1e9 < ret.wl_nm.max() * 2
 ).nonzero()[0]
