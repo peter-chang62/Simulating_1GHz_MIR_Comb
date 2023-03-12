@@ -8,7 +8,30 @@ from scipy.fftpack import next_fast_len
 import scipy.interpolate as spi
 import copy
 import scipy.optimize as spo
-import mkl_fft
+
+try:
+    import mkl_fft
+
+    use_mkl = True
+except ImportError:
+
+    class mkl_fft:
+        """
+        reproducing the following functions from mkl:
+            fft, ifft, rfft_numpy and irfft_numpy
+        """
+
+        def fft(x, axis, forward_scale):
+            return np.fft.fft(x, axis=axis) * forward_scale
+
+        def ifft(x, axis, forward_scale):
+            return np.fft.ifft(x, axis=axis) / forward_scale
+
+        def rfft_numpy(x, axis, forward_scale):
+            return np.fft.rfft(x, axis=axis) * forward_scale
+
+        def irfft_numpy(x, axis, forward_scale):
+            return np.fft.irfft(x, axis=axis) / forward_scale
 
 
 def normalize(x):
