@@ -1,5 +1,6 @@
 """phase retrieval example"""
 
+# %% package imports
 import clipboard_and_style_sheet
 import python_phase_retrieval as pr
 import numpy as np
